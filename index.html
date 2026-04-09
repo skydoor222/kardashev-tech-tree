@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Kardashev Tech Tree 3D</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; overflow:hidden; font-family:'Segoe UI',sans-serif; color:#fff; }
+canvas { display:block; }
+
+#hud {
+  position:fixed; top:0; left:0; right:0; z-index:10;
+  display:flex; align-items:center; gap:16px; padding:11px 24px;
+  background:rgba(0,0,8,0.88); border-bottom:1px solid rgba(99,102,241,0.25);
+  pointer-events:none;
+}
+#hud h1 {
+  font-size:15px; font-weight:800; letter-spacing:2px;
+  background:linear-gradient(90deg,#818cf8,#38bdf8,#34d399);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
+#hud .hint { font-size:10px; color:#475569; margin-left:auto; }
+
+/* Side Panel */
+#side {
+  position:fixed; top:0; left:-420px; width:380px; height:100vh;
+  background:rgba(3,7,18,0.97); border-right:1px solid rgba(99,102,241,0.3);
+  backdrop-filter:blur(20px); z-index:50; overflow-y:auto;
+  transition:left 0.4s cubic-bezier(0.22,1,0.36,1);
+}
+#side.open { left:0; }
+#side-inner { padding:68px 22px 40px; }
+#side-close {
+  position:absolute; top:12px; right:12px; width:28px; height:28px;
+  border-radius:50%; border:1px solid rgba(99,102,241,0.4);
+  background:rgba(99,102,241,0.1); color:#818cf8; font-size:13px;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+}
+#side-close:hover { background:rgba(99,102,241,0.35); color:#fff; }
+.s-badge { display:inline-block; font-size:10px; font-weight:800; padding:2px 10px; border-radius:20px; margin-bottom:10px; letter-spacing:1px; }
+.s-title { font-size:19px; font-weight:900; margin-bottom:3px; }
+.s-cat { font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; }
+.s-year { font-size:24px; font-weight:900; margin-bottom:14px; }
+.s-hr { height:1px; background:rgba(99,102,241,0.15); margin:12px 0; }
+.s-lbl { font-size:9px; text-transform:uppercase; letter-spacing:1.5px; color:#475569; margin-bottom:4px; display:block; }
+.s-val { font-size:12px; color:#cbd5e1; line-height:1.75; margin-bottom:12px; }
+.s-diff { color:#fbbf24; font-size:14px; margin-bottom:12px; }
+.chip { display:inline-block; font-size:10px; padding:2px 9px; border-radius:10px; border:1px solid rgba(99,102,241,0.35); background:rgba(99,102,241,0.12); color:#818cf8; margin:2px 2px 0 0; cursor:pointer; }
+.chip:hover { background:rgba(99,102,241,0.3); color:#fff; }
+
+/* Filters */
+#filters { position:fixed; top:52px; right:16px; display:flex; flex-direction:column; gap:4px; z-index:10; }
+.fbtn { padding:4px 12px; border-radius:20px; border:1px solid; font-size:10px; font-weight:700; cursor:pointer; backdrop-filter:blur(8px); }
+.fbtn:not(.on) { opacity:0.25; }
+
+/* Controls */
+#ctrl { position:fixed; bottom:18px; left:18px; display:flex; flex-direction:column; gap:7px; z-index:10; }
+.cbtn { width:34px; height:34px; border-radius:8px; border:1px solid rgba(99,102,241,0.4); background:rgba(5,10,30,0.8); color:#818cf8; font-size:17px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.cbtn:hover { background:rgba(99,102,241,0.3); color:#fff; }
+.cbtn.active { color:#34d399; border-color:#34d399; }
+
+/* Legend */
+#legend { position:fixed; bottom:18px; right:16px; background:rgba(3,7,18,0.85); border:1px solid rgba(99,102,241,0.2); border-radius:10px; padding:9px 13px; font-size:10px; color:#64748b; z-index:10; }
+#legend div { display:flex; align-items:center; gap:6px; margin-bottom:3px; }
+#legend .d { width:8px; height:8px; border-radius:50%; }
+
+/* Simulation badge */
+#sim-status { position:fixed; top:52px; left:18px; font-size:10px; color:#34d399; z-index:10; opacity:0; transition:opacity 0.5s; }
+#sim-status.show { opacity:1; }
+
+/* Intro overlay */
+#intro {
+  position:fixed; inset:0; z-index:1000; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; background:#000008;
+  pointer-events:none;
+  transition:opacity 1.2s ease;
+}
+#intro.hidden { opacity:0; }
+#intro-title {
+  font-size:clamp(22px,4vw,52px); font-weight:900; letter-spacing:6px;
+  background:linear-gradient(90deg,#818cf8,#38bdf8,#34d399,#fbbf24);
+  background-size:200% auto; -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  animation:shimmer 3s linear infinite; opacity:0; transform:scale(0.8);
+  transition:opacity 0.8s ease, transform 0.8s ease;
+}
+#intro-title.show { opacity:1; transform:scale(1); }
+#intro-sub {
+  margin-top:14px; font-size:13px; letter-spacing:3px; color:#38bdf8;
+  opacity:0; transition:opacity 0.8s ease 0.4s;
+}
+#intro-sub.show { opacity:1; }
+#intro-bar {
+  margin-top:40px; width:240px; height:2px; background:rgba(99,102,241,0.2); border-radius:2px; overflow:hidden;
+  opacity:0; transition:opacity 0.5s ease 0.6s;
+}
+#intro-bar.show { opacity:1; }
+#intro-bar-fill { height:100%; width:0%; background:linear-gradient(90deg,#818cf8,#38bdf8); transition:width 2.5s cubic-bezier(0.25,1,0.5,1); }
+@keyframes shimmer { to { background-position:200% center; } }
+
+/* Background Canvas */
+#bg-canvas {
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  transition: opacity 1.5s ease;
+}
+
+/* UNLOCK FX */
+#unlock-fx {
+  position:fixed; inset:0; z-index:500; pointer-events:none;
+  display:flex; align-items:center; justify-content:center;
+}
+#unlock-text {
+  font-size:clamp(32px,6vw,80px); font-weight:900; letter-spacing:8px;
+  color:#fff; text-shadow: 0 0 40px currentColor;
+  opacity:0; transform:scale(0.5);
+  transition: opacity 0.2s, transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+}
+#unlock-text.pop { opacity:1; transform:scale(1); }
+#unlock-text.fade { opacity:0; transform:scale(1.2); transition: opacity 0.6s, transform 0.6s; }
+#flash-overlay {
+  position:fixed; inset:0; z-index:490; background:#fff; opacity:0; pointer-events:none;
+  transition: opacity 0.15s;
+}
+</style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+
+<div id="unlock-fx"><div id="unlock-text">⚡ UNLOCKED</div></div>
+<div id="flash-overlay"></div>
+
+<div id="intro">
+  <div id="intro-title">⚡ KARDASHEV TECH TREE</div>
+  <div id="intro-sub">HUMANITY'S JOURNEY TO TYPE V CIVILIZATION</div>
+  <div id="intro-bar"><div id="intro-bar-fill"></div></div>
+</div>
+
+<div id="hud">
+  <h1>⚡ KARDASHEV TECH TREE — 3D Force</h1>
+  <span class="hint">左ドラッグ: 回転 ／ 右ドラッグ: 移動 ／ スクロール: ズーム ／ クリック: 詳細</span>
+  <div id="progress-hud" style="display:flex;align-items:center;gap:8px;font-size:11px;color:#475569">
+    <span id="prog-count">0</span><span style="color:#334155">/ <span id="prog-total">0</span></span>
+    <div style="width:120px;height:4px;background:rgba(99,102,241,0.2);border-radius:2px;overflow:hidden">
+      <div id="prog-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#818cf8,#38bdf8);transition:width 0.5s;border-radius:2px"></div>
+    </div>
+    <span style="color:#475569">EXPLORED</span>
+  </div>
+</div>
+
+<div id="sim-status">● 物理シミュレーション中...</div>
+
+<div id="side">
+  <button id="side-close">✕</button>
+  <div id="side-inner"></div>
+</div>
+
+<div id="filters"></div>
+
+<div id="ctrl">
+  <button class="cbtn" id="btn-reset">⌂</button>
+  <button class="cbtn" id="btn-auto">↻</button>
+  <button class="cbtn" id="btn-sim" title="物理再計算">⚛</button>
+</div>
+
+<div id="legend">
+  <div><span class="d" style="background:#a0a0a0"></span>原始時代</div>
+  <div><span class="d" style="background:#c8a84b"></span>中世〜近代</div>
+  <div><span class="d" style="background:#fb923c"></span>Type 0→I 惑星制御</div>
+  <div><span class="d" style="background:#38bdf8"></span>Type I→II 恒星制御</div>
+  <div><span class="d" style="background:#fbbf24"></span>Type II→III 銀河制御</div>
+  <div><span class="d" style="background:#a78bfa"></span>Type III→V 超越</div>
+  <div><span class="d" style="background:#34d399"></span>AI/情報科学</div>
+</div>
+
+<script src="./three.min.js"></script>
+<script>
+// ─────────────────────────────────────────────────────
+// BACKGROUND CANVAS ANIMATION
+// ─────────────────────────────────────────────────────
+const bgCanvas = document.getElementById('bg-canvas');
+const bgCtx = bgCanvas.getContext('2d');
+let currentBgLevel = null;
+let bgParticles = [];
+
+function resizeBg() {
+  bgCanvas.width = window.innerWidth;
+  bgCanvas.height = window.innerHeight;
+}
+resizeBg();
+window.addEventListener('resize', resizeBg);
+
+const BG_CONFIGS = {
+  '-2': {
+    gradient: ['#1a0f00','#2d1500','#0d0800'],
+    particles: { count:30, color:'#ff6600', size:1.5, speed:0.2, glow:15 },
+    desc: '火と闇——洞窟の夜'
+  },
+  '-1': {
+    gradient: ['#000d1a','#001a2e','#000510'],
+    particles: { count:60, color:'#ffd700', size:1, speed:0.3, glow:8 },
+    desc: '蒸気と星——産業の夜明け'
+  },
+  '0': {
+    gradient: ['#000510','#001020','#020818'],
+    particles: { count:100, color:'#38bdf8', size:1, speed:0.4, glow:10 },
+    desc: '情報の海——デジタル文明'
+  },
+  '4': {
+    gradient: ['#000a10','#001a14','#000c18'],
+    particles: { count:120, color:'#34d399', size:0.8, speed:0.5, glow:12 },
+    desc: 'AIの神経網——データの光'
+  },
+  '1': {
+    gradient: ['#050010','#100020','#000010'],
+    particles: { count:150, color:'#818cf8', size:0.8, speed:0.6, glow:15 },
+    desc: '恒星制御——太陽系の支配'
+  },
+  '2': {
+    gradient: ['#080010','#150025','#050015'],
+    particles: { count:200, color:'#fbbf24', size:0.6, speed:0.8, glow:20 },
+    desc: '銀河制御——星々の主'
+  },
+  '3': {
+    gradient: ['#0a0015','#1a002a','#050020'],
+    particles: { count:300, color:'#e879f9', size:0.5, speed:1.0, glow:25 },
+    desc: '超越——宇宙の設計者'
+  }
+};
+
+function initBgParticles(config) {
+  bgParticles = [];
+  for(let i=0; i<config.count; i++) {
+    bgParticles.push({
+      x: Math.random() * bgCanvas.width,
+      y: Math.random() * bgCanvas.height,
+      vx: (Math.random()-0.5) * config.speed,
+      vy: (Math.random()-0.5) * config.speed,
+      size: config.size * (0.5 + Math.random()),
+      opacity: Math.random(),
+      pulse: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+function drawBg(levelKey) {
+  const cfg = BG_CONFIGS[String(levelKey)];
+  if(!cfg) return;
+  const w = bgCanvas.width, h = bgCanvas.height;
+  const grd = bgCtx.createRadialGradient(w/2,h/2,0, w/2,h/2,Math.max(w,h)*0.7);
+  grd.addColorStop(0, cfg.gradient[1]);
+  grd.addColorStop(0.5, cfg.gradient[0]);
+  grd.addColorStop(1, cfg.gradient[2]);
+  bgCtx.fillStyle = grd;
+  bgCtx.fillRect(0,0,w,h);
+  bgParticles.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    if(p.x<0) p.x=w; if(p.x>w) p.x=0;
+    if(p.y<0) p.y=h; if(p.y>h) p.y=0;
+    p.pulse += 0.02;
+    const op = 0.3 + 0.7 * (Math.sin(p.pulse) * 0.5 + 0.5);
+    bgCtx.save();
+    bgCtx.globalAlpha = op * 0.8;
+    bgCtx.shadowBlur = cfg.particles.glow;
+    bgCtx.shadowColor = cfg.particles.color;
+    bgCtx.fillStyle = cfg.particles.color;
+    bgCtx.beginPath();
+    bgCtx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+    bgCtx.fill();
+    bgCtx.restore();
+  });
+  bgCtx.save();
+  bgCtx.globalAlpha = 0.04;
+  bgCtx.fillStyle = cfg.particles.color;
+  bgCtx.font = `bold ${Math.min(w*0.06, 60)}px 'Segoe UI'`;
+  bgCtx.textAlign = 'center';
+  bgCtx.fillText(cfg.desc, w/2, h*0.92);
+  bgCtx.restore();
+}
+
+let bgAnimFrame;
+function startBgAnim(levelKey) {
+  if(bgAnimFrame) cancelAnimationFrame(bgAnimFrame);
+  const cfg = BG_CONFIGS[String(levelKey)];
+  if(!cfg) return;
+  currentBgLevel = levelKey;
+  initBgParticles(cfg.particles);
+  function loop() {
+    drawBg(levelKey);
+    bgAnimFrame = requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+startBgAnim('-2');
+
+// ─────────────────────────────────────────────────────
+// TYPE CONFIG
+// ─────────────────────────────────────────────────────
+const T = {
+  "-2":{ label:"原始時代",     hex:"#a0a0a0", col:0xa0a0a0 },
+  "-1":{ label:"中世〜近代",  hex:"#c8a84b", col:0xc8a84b },
+   "0":{ label:"Type 0→I",   hex:"#fb923c", col:0xfb923c },
+   "1":{ label:"Type I→II",  hex:"#38bdf8", col:0x38bdf8 },
+   "2":{ label:"Type II→III",hex:"#fbbf24", col:0xfbbf24 },
+   "3":{ label:"Type III→V", hex:"#a78bfa", col:0xa78bfa },
+   "4":{ label:"AI/情報科学", hex:"#34d399", col:0x34d399 },
+};
+const tc = t => T[String(t)];
+
+// X軸固定値(時代)
+const X_T = {"-2":-900,"-1":-560,"0":-100,"4":80,"1":400,"2":720,"3":1020};
+
+// ─────────────────────────────────────────────────────
+// NODE DATA
+// ─────────────────────────────────────────────────────
+const NODES = [
+  {id:"PR1",t:-2,cat:"原始技術",   name:"火の利用",           year:"BC 100万年",diff:1,prereq:"観察・模倣・偶然",breakthrough:"調理・暖房・道具加工",unlock:"冶金・社会集団形成",mile:"ホモ・エレクトスによる制御された火",
+   scale:"火1つで夜の行動時間が2〜3倍に。調理により摂取カロリーが40%増加",
+   media:"🎬 『2001年宇宙の旅』(1968) — 猿人が骨を武器に使う冒頭シーン。火ではなく道具だが、知性の覚醒の象徴として描かれる。📚 ジャン・M・オール『大地の子エイラ』— 原始人の日常と火の支配を克明に描く",
+   episode:"夕暮れ、サバンナの洞窟の前で老いたエレクトスが火を守っている。子どもたちが焼けた肉の骨を齧り、夜の獣が近づかない。彼は「火が仲間だ」とまだ言葉にできないまま、炎を見つめてうとうとした。"},
+  {id:"PR2",t:-2,cat:"原始技術",   name:"石器製造",            year:"BC 260万年",diff:1,prereq:"手の器用さ・観察力",breakthrough:"狩猟効率の劇的向上",unlock:"農業革命の前提",mile:"オルドヴァイ石器文化の確立",
+   scale:"石器あり/なしで狩猟成功率：約3倍の差",
+   media:"🎬 『アポカリプト』(2006) — マヤ文明の石器・道具が生々しく描かれる。📚 『西の洞窟の少年』— 石器を作る過程が少年の成長と重なるサバイバル小説",
+   episode:"川原でひとりの若者が黒曜石を打ち欠いている。三十回失敗してようやく鋭い刃が生まれた瞬間、彼は小さく吠えた。その刃で翌朝の猪の腱を断ち切り、集落は三日間食べ物に困らなかった。"},
+  {id:"PR3",t:-2,cat:"原始技術",   name:"言語・記号体系",      year:"BC 10万年", diff:2,prereq:"脳の大型化・社会的生活",breakthrough:"知識の世代間伝達",unlock:"文字・数学・科学の根本",mile:"複雑な構文を持つ言語の発生",
+   scale:"言語により知識伝達速度が遺伝子進化の10万倍に",
+   media:"🎬 『メッセージ』(2016) — 異星人の言語を解読する言語学者の話。言語が思考を変えることを描く傑作。📚 テッド・チャン『あなたの人生の物語』— 映画原作。言語と時間認識の関係を探る",
+   episode:"老婆が孫に「川の向こうの赤い木の実は食べるな、腹が腐る」と語った。孫はその木に近づかなかった。言葉がなければ何千回も同じ過ちを繰り返すしかなかった——その夜、火を囲みながら物語が生まれた。"},
+  {id:"PR4",t:-2,cat:"原始技術",   name:"農業革命",            year:"BC 1万年",  diff:2,prereq:"石器・火・気候安定化",breakthrough:"余剰食料→都市・分業・階級",unlock:"文明・数学・天文学",mile:"メソポタミア・黄河での麦/稲作確立",
+   scale:"農業で1人が10人分の食料生産可能に。都市文明の直接原因",
+   media:"📚 ユヴァル・ノア・ハラリ『サピエンス全史』— 農業革命を「人類最大の詐欺」と喝破するノンフィクション。🎬 『テラ・フォーマーズ』— 惑星改造と農業的植民の思想を含むSF",
+   episode:"ユーフラテス河岸で女が麦の穂を土に埋めた。秋、同じ場所に穂が立ち並んだのを見て彼女は呆然とした。次の年、彼女の一族は冬を飢えずに越えた。狩りに出なかった男たちは日干し煉瓦を積み始めた。"},
+  {id:"PR5",t:-2,cat:"原始技術",   name:"冶金術（銅・青銅）",  year:"BC 5000年", diff:2,prereq:"火の利用・鉱石の認識",breakthrough:"金属工具で農業・建設・戦争が変容",unlock:"鉄器・錬金術・化学の萌芽",mile:"青銅器時代の幕開け",
+   scale:"青銅製鎌は石器の2倍の効率。武器・農具・建築ツール全てを変えた",
+   media:"🎬 『ロード・オブ・ザ・リング』— ドワーフの鍛冶技術・ミスリル・指輪の鍛造が中心的テーマ。📚 アーシュラ・K・ル=グウィン『世界の誕生日』— 金属と文明の関係を神話的に描く",
+   episode:"炉の番人の少年が緑色の石（孔雀石）を誤って炉に落とした。翌朝、溶けて固まった赤い金属を見た父親は震えた。それを薄く叩いて鎌を作ると、石器の倍の速さで麦を刈れた——少年の「失敗」が時代を変えた。"},
+  {id:"PR6",t:-2,cat:"原始技術",   name:"文字・数学の発明",    year:"BC 3500年", diff:2,prereq:"言語・農業・都市形成",breakthrough:"知識の客観的記録・数量化",unlock:"幾何学・天文学・論理学",mile:"シュメール楔形文字・ヒエログリフ確立",
+   scale:"文字以前：情報は1人の頭の中のみ。文字後：情報は人類全体の共有財産",
+   media:"🎬 『ウォール・E』— 文字・記録が失われた未来社会の警告。📚 ニール・スティーヴンスン『スノウ・クラッシュ』— 言語・記号が意識をハックするSF",
+   episode:"ウルクの倉庫番が粘土板に刻まれた記号を指でなぞる。「大麦37袋、受け取り済」——彼の頭では覚えきれない量だが、板は嘘をつかない。三千年後、その粘土板が発掘され、人類最古の「領収書」と呼ばれた。"},
+  {id:"PR7",t:-2,cat:"原始技術",   name:"車輪・機械の原理",    year:"BC 3500年", diff:2,prereq:"冶金術・農業",breakthrough:"輸送・製造の効率革命",unlock:"機械工学・歯車・滑車",mile:"轆轤・車輪馬車の確立",
+   scale:"車輪なし：人間が1日運べる荷物=50kg。車輪あり：500kg",
+   media:"🎬 『マッドマックス：怒りのデス・ロード』— 車輪・機械・輸送が文明の象徴として描かれる。📚 アシモフ『ファウンデーション』— 技術の継承と伝播がテーマ",
+   episode:"陶工が轆轤を回しながら壺を成形している。隣で荷車を引く牛が泥道に車輪を沈ませた。御者が舌打ちした——だが彼は知らなかった。その木の円盤が、五千年後に宇宙ロケットの部品を運ぶ工場の原型になることを。"},
+  {id:"MD1",t:-1,cat:"数学・論理", name:"ユークリッド幾何学",  year:"BC 300年",  diff:2,prereq:"文字・数学・論理的演繹",breakthrough:"空間の公理的記述・証明の概念",unlock:"微積分・物理学・工学設計",mile:"原論13巻の完成",
+   scale:"ピラミッド建設に幾何学必須。2500年後に橋・建物・GPS計算の基礎となる",
+   media:"🎬 『コンタクト』(1997) — 素数・数学的秩序が宇宙知性の証として登場。📚 グレッグ・イーガン『しあわせの理由』— 数学的宇宙論をテーマにしたハードSF",
+   episode:"アレクサンドリアの学院で若い書記がユークリッドの証明を書き写している。「なぜ三角形の内角の和が180度だと言い切れるのか？」と問うと、老師は砂に図を描いて見せた。その夜、少年は初めて「真実には根拠がある」と理解した。"},
+  {id:"MD2",t:-1,cat:"数学・論理", name:"代数学・アルゴリズム",year:"820年",     diff:2,prereq:"文字・インドのゼロ概念",breakthrough:"未知数を記号化・解法の体系化",unlock:"微積分・暗号・コンピュータ科学",mile:"フワーリズミー『代数学』",
+   scale:"アルゴリズムなしにコンピュータは存在できない。全デジタル文明の根",
+   media:"📚 ニール・スティーヴンスン『クリプトノミコン』— 暗号・数学・アルゴリズムが縦横に絡む大作。🎬 『イミテーション・ゲーム』— チューリングとアルゴリズムの誕生を描く",
+   episode:"バグダードの学者フワーリズミーが油商人の帳簿を見た。「x袋仕入れてy枚で売り……」複雑な計算を記号で整理し始める。「これを手順通りにやれば誰でも解ける」——1200年後、その「手順＝アルゴリズム」が全コンピュータの心臓になった。"},
+  {id:"MD3",t:-1,cat:"数学・論理", name:"微積分の発明",        year:"1687年",    diff:3,prereq:"幾何学・代数学・解析幾何",breakthrough:"変化率・面積・物理法則の数学的記述",unlock:"古典力学・電磁気学・量子力学の全て",mile:"ニュートン『プリンキピア』",
+   scale:"微積分なしに月ロケットの軌道計算は不可能。現代物理学の唯一の言語",
+   media:"📺 『ドクター・ストレンジ』— 物理法則の操作として微積分的世界観。📚 デイヴィッド・フォスター・ウォレス『∞の話』— 無限・極限概念を文学として昇華",
+   episode:"ニュートンがペスト疎開中の農場で林檎の落ちる速さを眺めている。「落ちる速さは刻一刻と変わる——その変化の変化を計算できないか？」羽根ペンを走らせ続けた翌朝、微分の萌芽が紙の上にあった。"},
+  {id:"MD4",t:-1,cat:"物理・化学", name:"古典力学の確立",      year:"1687年",    diff:3,prereq:"微積分・望遠鏡・実験",breakthrough:"運動・重力の数学的法則化",unlock:"軌道力学・機械工学・宇宙旅行設計",mile:"万有引力の法則・運動三法則",
+   scale:"砲弾の弾道から惑星軌道まで同じ式で記述。宇宙は数学的秩序の上にある",
+   media:"🎬 『インターステラー』(2014) — 重力・相対性を軸にした宇宙SF。キップ・ソーン監修で物理的に正確。📚 アシモフ『神々自身』— 物理定数が違う宇宙との接触を描く",
+   episode:"ロンドンの職人が大砲の弾道を計算している。以前は「勘と経験」だったが、今は式に数字を入れれば着弾点が出る。王立協会の書に書いてあった。「宇宙全体が同じ法則で動いている」——彼は砲弾を磨きながら夜空を仰いだ。"},
+  {id:"MD5",t:-1,cat:"物理・化学", name:"電磁気学の確立",      year:"1865年",    diff:3,prereq:"微積分・ファラデー実験",breakthrough:"電気・磁気・光の統一理論",unlock:"発電機・無線通信・レーザー",mile:"マクスウェル方程式の完成",
+   scale:"電磁波の発見がラジオ・TV・WiFi・5G・レーダー・電子レンジ全てを生んだ",
+   media:"🎬 『テスラ』(2020) — 交流電流・電磁気学をめぐるテスラとエジソンの戦いを描く。📺 『プレステージ』— テスラが発明した交流技術がキーアイテム",
+   episode:"エジンバラの下宿でマクスウェルが夜中に方程式を書き直している。「電場の変化が磁場を生み、磁場の変化が電場を生む——これは波として空間を伝わるはずだ」。計算した速度は光速と一致した。彼は椅子から立ち上がり、窓の外の星を見た。"},
+  {id:"MD6",t:-1,cat:"物理・化学", name:"熱力学の確立",        year:"1850年",    diff:3,prereq:"古典力学・実験",breakthrough:"エネルギー保存・エントロピー概念",unlock:"蒸気機関最適化・統計力学",mile:"熱力学第一・第二法則",
+   scale:"蒸気機関の効率改善で産業革命が加速。エントロピー概念が宇宙の終末を予言",
+   media:"📚 トマス・ピンチョン『重力の虹』— エントロピーが主要テーマの前衛文学。🎬 『サンシャイン2057』— 太陽エネルギーと熱力学の極限に迫るSF",
+   episode:"マンチェスターの機関士が蒸気機関の効率を記録している。「石炭を増やしても仕事量はある割合以上増えない——なぜだ？」クラウジウスの論文を読んで、彼はようやく理解した。宇宙は常に乱雑さに向かう、それが熱機関の壁だと。"},
+  {id:"MD7",t:-1,cat:"物理・化学", name:"原子論・化学結合論",  year:"1803年",    diff:3,prereq:"錬金術から化学へ・実験",breakthrough:"物質の原子構造の解明",unlock:"有機化学・材料科学・核物理学",mile:"ドルトン原子論・周期表",
+   scale:"原子番号の発見で118種の元素が整理された。全化学産業の設計図",
+   media:"🎬 『オッペンハイマー』(2023) — 原子構造の理解が核爆弾に至る過程を描くノーラン作品。📚 リチャード・ファインマン『ご冗談でしょう、ファインマンさん』— 物理の楽しさを語る名著",
+   episode:"マンチェスターで染料職人がなぜ特定の布だけに色が染まるのか不思議に思っていた。化学者ドルトンは「物質は目に見えない粒でできていて、粒同士が特定の相手としか結合しない」と説明した。職人は半信半疑だったが、その原理で新色の染料が生まれた。"},
+  {id:"MD8",t:-1,cat:"生物・医学", name:"進化論・遺伝学",      year:"1859年",    diff:3,prereq:"博物学・顕微鏡",breakthrough:"生命の多様性・遺伝の物理的基盤",unlock:"分子生物学・遺伝子工学",mile:"ダーウィン『種の起源』",
+   scale:"進化論がなければ抗生物質耐性も予測できない。医学・農業・AIの基盤",
+   media:"🎬 『ジュラシック・パーク』— 遺伝子・進化・生命操作の倫理を問う。📚 ダン・シモンズ『ハイペリオン』— 進化と知性の未来を描くSF叙事詩",
+   episode:"ガラパゴスでダーウィンが十三種類のフィンチのくちばしをスケッチしている。「なぜ同じ鳥がこれほど違う形に？」帰国後二十年間、彼は証拠を積み上げた。出版日の朝、彼は「これで神学者たちが怒る」と妻に囁いた。"},
+  {id:"MD9",t:-1,cat:"工業",       name:"蒸気機関・産業革命",  year:"1769年",    diff:2,prereq:"熱力学・古典力学・冶金",breakthrough:"人力から化石燃料エネルギーへ",unlock:"電力インフラ・化学工業・大量生産",mile:"ワット蒸気機関の商用化",
+   scale:"人間1人の筋力：0.1kW。蒸気機関：100kW。1000倍のエネルギー革命",
+   media:"📚 ウィリアム・ギブスン＆ブルース・スターリング『ディファレンス・エンジン』— 蒸気機関でコンピュータが生まれた世界を描くスチームパンクSF。🎬 『フロム・ヘル』— 産業革命ロンドンの暗部を描く",
+   episode:"バーミンガムの少女が工場の紡績機の前に立っている。以前は家で一本一本糸を紡いでいた。今は機械が百本同時に動く。母の仕事は消えたが、綿糸の値段は十分の一になり、家族全員が初めてシャツを二枚持てた。"},
+  {id:"MD10",t:-1,cat:"工業",      name:"電力インフラの確立",  year:"1882年",    diff:2,prereq:"電磁気学・蒸気機関",breakthrough:"エネルギーを遠距離で伝送・利用",unlock:"通信・コンピュータ・現代文明全般",mile:"エジソン発電所／テスラ交流システム",
+   scale:"電力なしに現代都市は1時間も機能しない。全デジタル社会の生命線",
+   media:"🎬 『ソーシャル・ネットワーク』— 電力インフラの上に立つデジタル時代の幕開けを象徴。📚 トマス・エジソン対ニコラ・テスラ——実際の歴史が最高のSFを超えている",
+   episode:"1882年9月4日夜、ニューヨークのパール街で電灯が一斉に点いた。馬車の御者が空を見上げた。「ガス灯より白い……太陽みたいだ」。翌朝の新聞には「闇が征服された」と書かれた。三十年後、その電線は大陸を覆った。"},
+  {id:"A1",t:4,cat:"情報科学",     name:"汎用人工知能(AGI)",   year:"2040年頃",  diff:5,prereq:"深層学習・強化学習・LLM",breakthrough:"人間レベルの汎用推論と創造性",unlock:"全技術研究の自動加速",mile:"チューリングテスト完全通過＋自己改善ループ",
+   media:"🎬 『エクス・マキナ』(2015) — 人工知能の意識と自律を問う密室劇。📚 ニック・ボストロム『スーパーインテリジェンス』— AGIのリスクを体系的に論じた必読書。🎬 『her/世界でひとつの彼女』— AGIとの関係性を詩的に描く",
+   episode:"2041年、研究者がAGIに「核融合炉の未解決問題を解いてほしい」と依頼した。三時間後、AGIは新しい磁場制御論文を五十本生成した。一本を読んだ物理学者が震える手でコーヒーを置いた。「これは……私が三十年考えていた問題の答えだ」"},
+  {id:"A2",t:4,cat:"情報科学",     name:"量子コンピュータ",    year:"2035年頃",  diff:4,prereq:"量子エラー訂正・トポロジカルキュービット",breakthrough:"ショアのアルゴリズム商用化",unlock:"材料設計計算10^6倍高速化",mile:"1000論理量子ビット・フォールトトレラント",
+   media:"📚 グレッグ・イーガン『ディアスポラ』— 量子計算で動く仮想知性体の1000万年を描くハードSF。🎬 『アントマン』— 量子世界を視覚化した映画",
+   episode:"2036年、薬品会社の研究員が量子コンピュータに新薬候補分子の計算を依頼した。従来なら十年かかるシミュレーションが三日で終わった。画面に表示された分子構造を見て、彼女は「これがアルツハイマーを止める鍵かもしれない」と呟いた。"},
+  {id:"A3",t:4,cat:"情報科学",     name:"エクサスケール計算",   year:"2030年頃",  diff:3,prereq:"光子コンピューティング・3D積層半導体",breakthrough:"気候/核融合シミュレーション精度向上",unlock:"全球気象10年予測",mile:"10^18 FLOPS 常時稼働",
+   media:"🎬 『デイ・アフター・トゥモロー』— 気候シミュレーションが警告を出す場面から始まる。📺 『ウエストワールド』— 巨大計算で人間の行動を予測するAI",
+   episode:"2031年、気象予報士が端末を見ている。「来年の夏、バングラデシュに大洪水が来る」——十ヶ月前の予測が初めて可能になった。政府は堤防工事を急いだ。洪水は来たが、死者はゼロだった。"},
+  {id:"A4",t:4,cat:"情報科学",     name:"ブレインコンピュータIF",year:"2050年頃", diff:4,prereq:"神経科学・ナノ電極・信号処理",breakthrough:"思考速度でのデジタル-人間統合",unlock:"集合知制御・文明意思決定の統一",mile:"100万電極同時読み書き",
+   media:"🎬 『マトリックス』(1999) — 脳とデジタルを直結するBCIの究極形。📚 ピーター・ワッツ『ブラインドサイト』— 意識とBCIの関係を探るハードSF",
+   episode:"2052年、脊髄損傷で十年間寝たきりだった男性がBCIを装着した。「動け」と思った瞬間、ロボットアームがコーヒーを持ち上げた。彼は泣きながら自分でカップを口に運んだ。その映像は二十億回再生された。"},
+  {id:"A5",t:4,cat:"情報科学",     name:"分散集合知AI",        year:"2100年頃",  diff:5,prereq:"マルチエージェントRL・AGI・BCI",breakthrough:"銀河スケール構造物の自律制御",unlock:"Type III以降の巨大インフラ運用",mile:"光年スケール遅延下での意思決定最適化",
+   media:"📚 ヴァーナー・ヴィンジ『技術的特異点』— 知性爆発を初めて論じた論文。📚 グレッグ・ベア『ブラッド・ミュージック』— ナノAIが集合知になる物語",
+   episode:"2103年、地球から4光年離れたプロキシマ基地のAIが局所的な意思決定を行い、太陽系のAIと整合を取っている。人間のオペレーターは「概要レポート」を朝食中に読むだけだ。「今日も宇宙は平和か」と彼は呟いた。"},
+  {id:"P1",t:0,cat:"理論物理学",   name:"量子場理論の完全体系化",year:"2060年頃", diff:5,prereq:"QED・QCD・群論・トポロジー",breakthrough:"標準模型と重力の統一",unlock:"核力精密制御・量子重力",mile:"LHC後継機でのGUT粒子観測",
+   media:"📚 グレッグ・イーガン『プランク・ダイブ』— 量子重力の極限を探るハードSF。🎬 『アニヒレーション 全滅領域』— 物理法則が書き換わった空間を探索する",
+   episode:"2063年、物理学者が統一理論の最終方程式を黒板に書き終えた。彼女の指導教員だった老教授が病室で訃報を聞く前に「完成したか」とだけ尋ねた。「はい」という返事に、老人は目を閉じてそのまま眠るように笑った。"},
+  {id:"P2",t:0,cat:"理論物理学",   name:"量子重力理論の確立",  year:"2100年頃",  diff:5,prereq:"一般相対性理論・量子力学・弦理論",breakthrough:"プランクスケール時空構造の解明",unlock:"ワープドライブ・ワームホール設計",mile:"重力波干渉計でのプランク長揺らぎ検出",
+   media:"🎬 『インターステラー』— 時空の歪みと量子重力をビジュアル化した最高峰。📚 リサ・ランドール『ワープする宇宙』— 余剰次元と量子重力を解説する名著",
+   episode:"2101年、重力波観測所の夜勤研究員がモニターに異常な揺らぎを見つけた。「これは……プランク長スケールの時空の泡だ」。彼は震える手でアラートを送った。翌朝、ノーベル委員会の電話が鳴った。"},
+  {id:"P3",t:0,cat:"核物理学",     name:"核融合反応の完全制御",year:"2080年頃",  diff:5,prereq:"プラズマ物理・核力制御・QCD計算",breakthrough:"点火条件を任意設定・多段階融合反応",unlock:"商用核融合炉・反物質生成",mile:"Q>10の持続的融合反応",
+   media:"📚 アーシュラ・K・ル=グウィン『所有せざる人々』— 核融合に依存する社会と無所有の惑星の対比。🎬 『スパイダーマン: ファー・フロム・ホーム』— 核融合的エネルギー技術が背景",
+   episode:"2082年夏、南フランスのプラントで核融合炉が初めて安定稼働した。制御室で技術者が呟いた「これで石炭も石油もいらない」。外では抗議活動をしていた環境団体が、その夜静かに解散した。"},
+  {id:"P4",t:0,cat:"物理学",       name:"常温常圧超電導体",    year:"2050年頃",  diff:5,prereq:"BCS理論・トポロジカル物質科学",breakthrough:"300K/1atm条件でゼロ抵抗確認",unlock:"100T超定常磁場・無損失送電",mile:"新規材料の工業規模製造",
+   media:"📚 マイケル・クライトン『タイムライン』— 超電導・量子技術の応用を描くSF冒険譚。🎬 『アベンジャーズ』シリーズ — 超電導磁石を応用したアークリアクターが登場",
+   episode:"2051年、材料研究所の助手が合成した新化合物の抵抗をゼロ度から常温まで測定した。抵抗がゼロのまま変わらなかった。彼女は装置の誤作動を疑い三回測り直した。四回目も同じだった。廊下を走って教授室に飛び込んだ。"},
+  {id:"P5",t:0,cat:"物理学",       name:"超高強度レーザー物理",year:"2040年頃",  diff:4,prereq:"非線形光学・極限プラズマ物理・CPA",breakthrough:"10^25 W/cm² 安定発振",unlock:"ICF核融合・反物質対生成",mile:"電子-陽電子対生成の商用化",
+   media:"🎬 『スター・ウォーズ』— デス・スターのレーザー砲が超高強度レーザーの究極形。📚 グレッグ・イーガン『クロックワーク・ロケット』— 光物理学を根本から再構築するSF",
+   episode:"2042年、レーザー実験室で若手研究者がターゲットに極短パルスを照射した。ほんの一瞬、真空から電子と陽電子のペアが生まれた。「光から物質を作った」——アインシュタインのE=mc²が目の前で起きた。"},
+  {id:"M1",t:0,cat:"材料科学",     name:"超耐熱セラミックス",  year:"2060年頃",  diff:4,prereq:"固体物理学・結晶化学・熱力学",breakthrough:"10,000K耐久・核融合炉壁材",unlock:"核融合炉建設・極超音速機体",mile:"W-Ta-Re合金500時間耐久試験通過",
+   media:"🎬 『エイリアン』— 宇宙船の耐熱材料と未知素材の脅威が描かれる。📚 ハル・クレメント『重力の使命』— 極限環境と材料の関係を探るハードSF",
+   episode:"2062年、炉壁試験場で作業員が新素材の壁パネルをトーチで炙った。一万度の炎の中、パネルは微動だにしなかった。「こいつは太陽の表面より熱い炎に耐えた」——その一枚が核融合炉の壁を守ることになった。"},
+  {id:"M2",t:0,cat:"材料科学",     name:"超電導体量産化",      year:"2060年頃",  diff:4,prereq:"常温常圧超電導体・結晶工学",breakthrough:"超電導コイルコスト1/100",unlock:"大陸間超電導送電・磁気浮上",mile:"工業規模製造の確立",
+   media:"🎬 『バック・トゥ・ザ・フューチャー Part II』— 磁気浮上ホバーボードが超電導の夢を描く。📺 『レールガン』（とある科学の）— 超電導と電磁加速を題材にしたアニメ",
+   episode:"2063年、工場の生産ラインで超電導ワイヤーが巻き取られている。一キロのコストが昨年の百分の一になった。工場長は「これで送電ロスがなくなる」と笑った。その日の夕方、最初の超電導送電線の建設入札が始まった。"},
+  {id:"M3",t:0,cat:"材料科学",     name:"プログラマブル物質",  year:"2150年頃",  diff:5,prereq:"ナノロボティクス・分子機械・量子コンピュータ",breakthrough:"原子単位で自己再構成する材料",unlock:"自己修復構造物・ダイソン球",mile:"10nm自己組織化構造の安定動作",
+   media:"🎬 『ターミネーター2』— T-1000の液体金属が自己再構成するプログラマブル物質の象徴。📚 マイケル・クライトン『プレイ』— 自己複製するナノ粒子の暴走を描くSFスリラー",
+   episode:"2153年、宇宙ステーションで微小隕石が外壁に穴を開けた。乗組員が修理キットを取り出す前に、壁面が自ら閉じた。プログラマブル素材が損傷を検知して再構成したのだ。船長は「材料が生きている」と記録に書いた。"},
+  {id:"M4",t:0,cat:"材料科学",     name:"格子欠陥原子制御",    year:"2070年頃",  diff:4,prereq:"計算材料学・DFT・電子顕微鏡",breakthrough:"原子単位の欠陥除去・理論限界強度",unlock:"宇宙構造材・CNT量産化",mile:"CNT 100GPa量産",
+   media:"📚 キム・スタンリー・ロビンソン『2312』— 軌道エレベーターを支えるカーボン素材が登場。🎬 『スパイダーマン』— クモの糸（炭素繊維的素材）が格子構造の強度を象徴",
+   episode:"2072年、ナノ工場でカーボンナノチューブが一本一本欠陥なく生産されている。品質チェックを担当するAIが「今日の歩留まり99.97%」と報告した。その線材で作った橋は鋼鉄の百倍の強度を持ち、重さは十分の一だった。"},
+  {id:"E1",t:0,cat:"エネルギー",   name:"磁気閉じ込めトカマク炉",year:"2090年頃",diff:4,prereq:"プラズマ物理・超電導・耐熱材料",breakthrough:"Q>1 商用核融合発電",unlock:"惑星エネルギーグリッド・宇宙推進",mile:"DEMO炉 1GW級発電",
+   media:"📚 アーシュラ・K・ル=グウィン『所有せざる人々』— 核融合エネルギー社会の理想と現実。🎬 『チェーン・リアクション』(1996) — 核融合実用化を巡る陰謀サスペンス",
+   episode:"2092年、DEMO炉の商用発電開始の朝、隣の街の送電計器の針がゆっくり上がった。配電管理者が確認した。「核融合電力が家庭に入った」。その日から、電力価格が下がり始め、翌年には石炭発電所の廃止ラッシュが始まった。"},
+  {id:"E2",t:0,cat:"エネルギー",   name:"慣性閉じ込め核融合",  year:"2080年頃",  diff:4,prereq:"超高強度レーザー・核融合制御",breakthrough:"レーザー点火70%爆縮効率",unlock:"小型核融合炉・宇宙船エンジン",mile:"1000MJ級エネルギー利得",
+   media:"🎬 『イベント・ホライゾン』— 超小型核融合ドライブで宇宙を旅する宇宙船が描かれる。📚 ラリー・ニーヴン『リングワールド』— 巨大エネルギーを扱う宇宙文明の描写",
+   episode:"2081年、直径一センチの水素ペレットにレーザー百本が同時照射された。瞬間的な爆縮が起き、一千メガジュールのエネルギーが放出された。観測室の研究者が無言でガッツポーズをした——消費エネルギーの十五倍が出た。"},
+  {id:"E3",t:0,cat:"エネルギー",   name:"宇宙太陽光発電(SSPS)", year:"2120年頃", diff:4,prereq:"軌道力学・マイクロ波工学",breakthrough:"天候非依存の宇宙発電",unlock:"惑星グリッド統合",mile:"GEO軌道1GW衛星群・WPT効率90%",
+   media:"📺 『機動戦士ガンダム』— スペースコロニーのソーラーシステムが宇宙太陽光発電の原型。📚 アーサー・C・クラーク『楽園の泉』— 軌道エレベーターと宇宙エネルギーを描く古典",
+   episode:"2122年曇り空の日、北海道の受電基地に宇宙から降り注ぐマイクロ波が届き続けた。天気に関係なく「太陽」が輝いている。担当技術者は「これで日本のエネルギー自給率が100%を超えた」とSNSに投稿した。"},
+  {id:"E4",t:0,cat:"エネルギー",   name:"超大容量エネルギー貯蔵",year:"2040年頃",diff:3,prereq:"電気化学・固体物理学",breakthrough:"全固体電池500Wh/kg",unlock:"間欠性再エネの完全平滑化",mile:"全固体電池$50/kWh",
+   media:"🎬 『エレクトリック・ドリームス』— 電力と意識が融合した未来を描くSFアンソロジー。📚 アンディ・ウィアー『火星の人』— 電力管理とエネルギー貯蔵が生死を分ける",
+   episode:"2041年、砂漠の風力発電所の蓄電管理者が夜中に日誌を書く。「今夜は風がなかったが、電池に三日分を蓄えてある」。以前は風のない夜、隣の街が停電した。今は電池が空になる前に太陽が昇る。"},
+  {id:"E5",t:0,cat:"エネルギー",   name:"水素経済の確立",      year:"2050年頃",  diff:3,prereq:"電気分解化学・触媒工学",breakthrough:"グリーン水素$1/kg",unlock:"長距離エネルギー輸送",mile:"1TW規模の水電解プラント",
+   media:"🎬 『ハイドロゲン』— 水素社会への移行を描く近未来ドラマ。📚 ジュール・ヴェルヌ『謎の島』(1874) — 水を燃料とする未来を150年前に予言した驚異の小説",
+   episode:"2052年、トラック運転手が水素ステーションで満タンにした。五分で充填完了。「ガソリンより速い」と彼は笑った。荷台には食料品。排気口からは水蒸気だけが出た。高速道路を走りながら、彼は初めて排ガスの臭いがないことに気づいた。"},
+  {id:"E6",t:0,cat:"エネルギー",   name:"反物質生成・保存",    year:"2200年頃",  diff:5,prereq:"量子場理論・超高強度レーザー",breakthrough:"マイクログラム反物質保存",unlock:"反物質エンジン",mile:"反陽子1年間安定保存",
+   media:"🎬 『天使と悪魔』— 反物質爆弾をめぐるサスペンス。CERNで生成された反物質が兵器化される。📚 ダン・ブラウン同名原作小説 — 反物質の危険性と可能性を大衆に広めた",
+   episode:"2203年、反物質貯蔵施設の管理者が一年間の保存記録を確認した。磁気ボトルの中にマイクログラムの反陽子が静かに浮いている。彼女は「宇宙で最も危険な物質が、世界で最も安全な場所にある」と日記に書いた。"},
+  {id:"G1",t:0,cat:"地球工学",     name:"精密気象予測(10年)",  year:"2060年頃",  diff:4,prereq:"気象学・カオス理論・AGI",breakthrough:"決定論的予測限界の突破",unlock:"農業最適化・災害防止",mile:"季節予測精度95%",
+   media:"🎬 『デイ・アフター・トゥモロー』— 気象シミュレーション警告を無視した人類の末路。📚 マイケル・クライトン『ネクスト』— 気候データ操作の政治的危険性を描く",
+   episode:"2062年、農家の老人が端末を見ている。「来年の夏は渇水、秋は豊雨」という十ヶ月先の予報だ。彼は種まきの計画を変えた。隣の農家は従来通りやって作物を半分失った。老人の畑だけが豊作だった。"},
+  {id:"G2",t:0,cat:"地球工学",     name:"成層圏エアロゾル制御",year:"2080年頃",  diff:4,prereq:"大気物理学・気象予測",breakthrough:"全球温度±0.1K精度で制御",unlock:"Type I移行期の気候安定化",mile:"全球冷却0.5K・オゾン層維持",
+   media:"🎬 『ジオストーム』— 気候制御衛星が暴走するSFサスペンス。📚 キム・スタンリー・ロビンソン『レッド・マーズ』— 惑星規模の気候改変の倫理的葛藤を描く",
+   episode:"2083年夏、異常熱波が来るはずだった日、世界気候管理局が成層圏への硫酸塩散布を指示した。三日後、予報通り気温が0.3度下がった。ニューデリーの外で農作業をする老女が「今年の夏は涼しい」と息子にメッセージを送った。"},
+  {id:"G3",t:0,cat:"地球工学",     name:"大気CO2直接制御",     year:"2070年頃",  diff:4,prereq:"化学工学・熱力学・DAC",breakthrough:"大気中300ppm以下へ削減",unlock:"炭素循環の完全制御",mile:"DACコスト$100/ton・年10GtCO2除去",
+   media:"🎬 『インターステラー』— 枯れた農地と大気汚染が進んだ地球から逃げ出す物語。地球工学の失敗後を描く。📚 キム・スタンリー・ロビンソン『ニューヨーク2140』— 海面上昇後の都市を描く近未来小説"},
+  {id:"G4",t:0,cat:"惑星工学",     name:"軌道リング建設",      year:"2300年頃",  diff:5,prereq:"プログラマブル物質・CNT・軌道力学",breakthrough:"赤道周回12,800km環状構造物",unlock:"軌道大量輸送・太陽エネルギー収集",mile:"静止軌道自己支持型リング初節稼働",
+   media:"📚 アーサー・C・クラーク『楽園の泉』— 軌道エレベーターと宇宙構造物建設の先駆的ビジョン。🎬 『エリジウム』— 軌道上に建設された富裕層のリング型コロニー",
+   episode:"2302年、赤道上空で軌道リングの第一節が完成した。ブラジルの漁師が夜明けに空を見ると、星のような光の帯が東から西へ動いていた。「あれが人間の作ったものか」と彼は呟いた。息子が「あそこからエレベーターで宇宙に行けるんだよ」と教えた。"},
+  {id:"G5",t:0,cat:"惑星工学",     name:"惑星磁場・アルベド制御",year:"2350年頃",diff:5,prereq:"地球物理学・MHD理論・核融合",breakthrough:"地球磁気圏強度±10%調整",unlock:"宇宙線防護・惑星環境設計",mile:"南極域の磁場強度10%増強",
+   media:"📚 キム・スタンリー・ロビンソン『グリーン・マーズ』— 火星の磁場生成プロセスが詳細に描かれる。🎬 『ザ・コア』— 地球の磁場崩壊を描くSFパニック映画",
+   episode:"2355年、極圏の研究基地で科学者がオーロラの強度変化を記録した。地球の磁場が人為的に強化されたことで、宇宙線が以前の30%まで低減された。「これで火星テラフォーミングの磁場設計に使える」と彼女はノートに書いた。"},
+  {id:"G6",t:0,cat:"惑星工学",     name:"完全テラフォーミング", year:"2400年頃",  diff:5,prereq:"地球システム科学・生態工学",breakthrough:"任意の気候状態への移行",unlock:"火星/金星テラフォーミング",mile:"火星大気圧0.5気圧・気温10℃到達",
+   media:"📚 キム・スタンリー・ロビンソン『レッド・マーズ』三部作 — テラフォーミングの全過程を描いたSFの金字塔。🎬 『テラフォーマーズ』— 火星改造と生命工学を題材にしたアニメ",
+   episode:"2405年、火星北緯45度の平原で最初の入植者が防護服なしで外に出た。気圧は地球の半分、気温は10℃。薄い大気に風が吹き、遠くに雲が見えた。彼女は膝をついて赤い土を握った。「ここが第二の故郷になる」"},
+  {id:"I1",t:0,cat:"インフラ",     name:"大陸間超電導送電",    year:"2100年頃",  diff:4,prereq:"超電導体量産化・電力工学",breakthrough:"10,000km無損失伝送",unlock:"全球電力網統一",mile:"ユーラシア横断超電導線初稼働",
+   media:"📚 アシモフ『ファウンデーションと地球』— 銀河規模のエネルギーネットワークが描かれる。🎬 『トロン：レガシー』— 情報・電力インフラとデジタル世界の融合",
+   episode:"2103年、モスクワの送電管理室で技術者が確認した。「リスボン発の電力がウラジオストクに届いている、損失0.1%以下」。一万キロを経て電子がほぼそのまま届いた。「人類が初めて大陸を一本の電線でつないだ」"},
+  {id:"I2",t:0,cat:"インフラ",     name:"グローバル電力網同期",year:"2150年頃",  diff:3,prereq:"スマートグリッド・AGI",breakthrough:"全地球リアルタイム需給制御",unlock:"惑星エネルギー完全制御",mile:"全大陸電力網の単一システム統合",
+   media:"🎬 『ダイ・ハード4.0』— 電力インフラへのサイバー攻撃で文明が崩壊する恐怖。📺 『ブラックアウト』— 全欧州停電の72時間を描くドイツのSFドラマ",
+   episode:"2152年、地球電力管理AIが北アフリカの太陽光余剰電力をリアルタイムで日本の夜間需要に振り向けた。停電ゼロの地球が始まった朝、各地の電力会社の掲示板に「今日の需給バランス：完璧」と表示された。"},
+  {id:"I3",t:0,cat:"インフラ",     name:"軌道エレベーター",    year:"2200年頃",  diff:5,prereq:"CNT量産化・軌道力学",breakthrough:"宇宙へのコスト$100/kg以下",unlock:"ダイソン球建設資材輸送",mile:"CNTテザー静止軌道到達",
+   media:"📚 アーサー・C・クラーク『楽園の泉』— 軌道エレベーター建設を描いたSFの古典的名作。📚 キム・スタンリー・ロビンソン『2312』— 軌道エレベーターが日常的なインフラとなった世界",
+   episode:"2203年、軌道エレベーターの初の有人乗客便が出発した。乗客は農業用ドローン部品を運ぶ配送員だった。三十六時間後、静止軌道に着いた彼は窓から青い地球を見た。「こんなに安く来られるなら、来週また来よう」と呟いた。"},
+  {id:"S1",t:1,cat:"宇宙推進",     name:"相対論的推進理論",    year:"2300年頃",  diff:5,prereq:"特殊相対性理論・GR補正・反物質",breakthrough:"光速10%以上での恒星間航行設計",unlock:"反物質エンジン実用化",mile:"0.1c到達の推進ミッション計算完成",
+   media:"📚 ポール・アンダースン『タウ・ゼロ』— 減速できない宇宙船が光速に近づくにつれ宇宙の終末まで旅するSF。🎬 『アド・アストラ』— 恒星間推進技術と人間の孤独を描く",
+   episode:"2305年、宇宙推進研究所の主任が三十年がかりの計算を完成させた。「0.1cで飛べば、プロキシマへは43年で着ける」。彼は自分が生きている間に到着できないと知りながら、設計書に署名した。孫の世代への贈り物だった。"},
+  {id:"S2",t:1,cat:"宇宙推進",     name:"反物質エンジン実用化",year:"2400年頃",  diff:5,prereq:"相対論推進・磁気ノズル工学",breakthrough:"比推力10^7秒・惑星間移動3ヶ月",unlock:"恒星間移住・ダイソン球建設",mile:"反陽子推進試験機が木星到達",
+   media:"🎬 『スター・トレック』— 反物質を動力とするワープドライブが最も有名な描写。📚 チャールズ・ペレグリーノ『フライ・バイ・ナイト』— 反物質推進で飛ぶ恒星間ミッション",
+   episode:"2402年、木星軌道に試験機が到達した。反物質エンジンの噴射痕が暗黒宇宙に青白く輝いていた。地球の管制室で喝采が起きた。「三ヶ月で木星。かつては六年かかった」——次の目標はアルファ・ケンタウリだった。"},
+  {id:"S3",t:1,cat:"宇宙推進",     name:"He3月面採掘",          year:"2250年頃",  diff:4,prereq:"月面採掘工学・同位体分離",breakthrough:"年間1トンHe3採掘・核融合燃料自給",unlock:"D-He3反応炉・深宇宙探査",mile:"月面採掘基地の自動化稼働",
+   media:"🎬 『月』(2009) — 月面採掘基地で孤独に働くクローン人間の物語。He3採掘が背景。📺 『フォー・オール・マンカインド』— 月面資源採掘競争を描く別歴史ドラマ",
+   episode:"2253年、月面基地の夜勤オペレーターが採掘ロボットの状況を確認した。「今日のHe3収量、1.2トン」。地球では同量の化石燃料が一億人分の電力を一年間賄う。彼はコーヒーを飲みながら、地球の青い光を眺めた。"},
+  {id:"D1",t:1,cat:"ダイソン球",   name:"巨大宇宙構造物工学",  year:"2500年頃",  diff:5,prereq:"プログラマブル物質・CNT・分散AI",breakthrough:"惑星規模の自律建設",unlock:"ダイソンスウォーム・恒星間艦隊",mile:"直径1000km構造物建設",
+   media:"📚 ラリー・ニーヴン『リングワールド』— 恒星を取り巻くリング状巨大構造物の傑作SF。🎬 『ガーディアンズ・オブ・ギャラクシー』— 惑星サイズの宇宙構造物が登場",
+   episode:"2503年、木星軌道で直径千キロの構造体が完成した。地球から肉眼では見えないが、望遠鏡を向けると星の前を通過する小さな影が見える。宇宙飛行士が「これは人類が作った最初の月だ」と通信した。"},
+  {id:"D2",t:1,cat:"ダイソン球",   name:"ダイソンスウォーム展開",year:"2700年頃", diff:5,prereq:"巨大宇宙構造物・反物質エンジン",breakthrough:"100万個の採集衛星が太陽周回",unlock:"Type II初期エネルギー到達",mile:"太陽出力1%回収スウォーム完成",
+   media:"📚 アシモフ『神々自身』— 恒星エネルギーを利用する文明間の交流と葛藤。🎬 『2001年宇宙の旅』— 宇宙規模の文明の進化が暗示される",
+   episode:"2712年、太陽系内の観測衛星が百万個の採集衛星が太陽を取り囲む様子を撮影した。夜の地球から太陽を見ると、その縁が微かに暗くなっていた。老天文学者が言った「ダイソンが七百年前に夢見た光景だ」"},
+  {id:"D3",t:1,cat:"ダイソン球",   name:"完全ダイソン球閉包",  year:"3000年頃",  diff:5,prereq:"ダイソンスウォーム・プログラマブル物質",breakthrough:"太陽エネルギー99.9%回収",unlock:"Type II完全達成・恒星操作",mile:"太陽の可視光が宇宙から不可視化",
+   media:"📚 フレッド・ホイル『暗黒星雲』— 恒星を覆う知的存在の概念を先駆的に描く。📚 オラフ・ステープルドン『スターメイカー』— ダイソン球概念の元となった宇宙スケール文明のビジョン",
+   episode:"西暦3001年、地球から1000光年離れた星系の文明の天文学者が、かつて観測できた「黄色い星」が消えたことに気づいた。「この座標の星が消えた……これは自然現象ではない」——彼らは初めて、知的生命体の痕跡を見つけた。"},
+  {id:"D4",t:1,cat:"恒星工学",     name:"恒星磁場・フレア制御",year:"2600年頃",  diff:5,prereq:"太陽物理学・MHD理論",breakthrough:"太陽フレアの意図的誘発・抑制",unlock:"恒星核融合率制御",mile:"X1クラスフレアの時刻制御±6時間",
+   media:"📚 ダン・シモンズ『ハイペリオン』— 恒星規模の工学が文明の基盤となる世界。🎬 『サンシャイン2057』— 太陽を再点火しようとする宇宙船乗組員の物語",
+   episode:"2604年、太陽管制局からアラートが出た。「予定フレア、六時間後に発生」。地球の衛星オペレーターたちが安全モードに切り替えた。フレアは予報通りの時刻に起きた。かつては突然の停電と衛星破壊を引き起こした現象が、今は「予定表」に載っていた。"},
+  {id:"D5",t:1,cat:"恒星工学",     name:"恒星核融合率制御",    year:"2800年頃",  diff:5,prereq:"恒星内部物理学・磁場制御",breakthrough:"太陽の寿命を人為的に延長/調整",unlock:"恒星エネルギー産出量の精密制御",mile:"太陽半径2%変化引き起こす磁気ポンプ",
+   media:"📚 アーサー・C・クラーク『神の鎚』— 恒星系規模の工学と人類の運命。📚 グレッグ・ベア『永劫』— 恒星を操作する超文明の存在が示唆される",
+   episode:"2810年、「太陽寿命管理委員会」の年次報告が出た。「磁気ポンプの調整により、太陽の余命が推定20億年延長された」。地球の子どもたちの教科書に「太陽は人類が管理している」と書かれた最初の年だった。"},
+  {id:"D6",t:1,cat:"恒星工学",     name:"BHエネルギー転換",    year:"3500年頃",  diff:5,prereq:"BH熱力学・Kerr計量・量子重力",breakthrough:"回転BHからのペンローズ過程",unlock:"Type II超過エネルギー・銀河コアアクセス",mile:"BHスピンダウン観測・効率20%",
+   media:"📚 グレッグ・イーガン『シュレディンガーの猫を追って』— ブラックホール物理学を軸にしたSF。🎬 『インターステラー』— ガルガンチュアのブラックホールとエネルギー転換の映像化",
+   episode:"3503年、直径10kmのブラックホール採掘施設で作業AIが報告した「本日のエネルギー回収：太陽百個分×10日間」。人類はもはや星を燃やす必要がなかった。時空の回転そのものがエネルギー源になった。"},
+  {id:"C1",t:1,cat:"通信",         name:"恒星間レーザー通信網",year:"2600年頃",  diff:4,prereq:"超高強度レーザー・適応光学",breakthrough:"光年スケール低遅延通信",unlock:"恒星間文明のリアルタイム調整",mile:"プロキシマ星系との双方向通信確立",
+   media:"🎬 『コンタクト』(1997) — 電波信号で宇宙人と通信する科学者の物語。恒星間通信の意味を問う。📚 スタニスワフ・レム『宇宙飛行士ピルクス』— 宇宙通信と孤独を描く短編集",
+   episode:"2607年、プロキシマ・ケンタウリの入植基地からレーザー通信が届いた。4年2ヶ月の遅延。送った側はもう返信を知らない人もいる。受けた側はメッセージを読んで泣いた。「時差がある家族への手紙みたいなものだ」と基地長は言った。"},
+  {id:"W1",t:2,cat:"時空工学",     name:"エキゾチック物質製造",year:"4000年頃",  diff:5,prereq:"量子重力・カシミール効果の巨視化",breakthrough:"負エネルギー密度物質のkgスケール製造",unlock:"ワープドライブ・ワームホール安定化",mile:"カシミールキャビティでナノグラム負エネルギー",
+   media:"📚 グレッグ・イーガン『ディアスポラ』— エキゾチック物質と多次元宇宙の探索を描く。🎬 『コンタクト』— 異星人が残した設計図に負エネルギーが使われている",
+   episode:"西暦4003年、研究施設で負エネルギー密度物質がグラム単位で生成された。観測した科学者が「真空に穴が開いている」と表現した。それは宇宙の布地を折り曲げるための「のり」だった——ワープドライブ設計の最後のピースが揃った。"},
+  {id:"W2",t:2,cat:"時空工学",     name:"ワープドライブ実装",  year:"5000年頃",  diff:5,prereq:"エキゾチック物質・宇宙計量力学",breakthrough:"空間変形による超光速的移動",unlock:"銀河規模の移動・Type III拡張",mile:"局所的時空計量の実験室スケール変形",
+   media:"🎬 『スター・トレック』— ワープドライブの最も有名な描写。アルクビエレ理論を先取り。📚 アイザック・アシモフ『銀河帝国の興亡』— ハイパードライブで銀河を駆ける文明",
+   episode:"西暦5012年、試験船の乗組員三名が銀河中心方向に向けて出発した。目的地は2000光年先の星雲。「何年かかる？」と記者が問うた。「三日です」と船長が答えた。銀河が人類の「近所」になった瞬間だった。"},
+  {id:"W3",t:2,cat:"時空工学",     name:"ワームホール安定化",  year:"5000年頃",  diff:5,prereq:"エキゾチック物質・トポロジー",breakthrough:"通過可能なワームホール秒単位安定維持",unlock:"銀河間即時通信・エネルギーゲート",mile:"直径1nmワームホール1秒間安定維持",
+   media:"🎬 『インターステラー』— 土星軌道のワームホールを通過する場面が映像史上最高のビジュアル。📚 カール・セーガン『コンタクト』— ワームホール通過を科学的に描いた最初の小説",
+   episode:"西暦5008年、実験室でナノメートルのワームホールが一秒間保たれた。研究者が片方から光子を入れると、2メートル離れた出口から出てきた。「空間をショートカットした」——人類が初めて時空の位相を変えた瞬間だった。"},
+  {id:"B1",t:2,cat:"銀河工学",     name:"銀河スウォーム展開",  year:"6000年頃",  diff:5,prereq:"完全ダイソン球・分散AI・ワープ",breakthrough:"1000億個の恒星周辺に採集衛星展開",unlock:"Type IIIエネルギー到達",mile:"天の川銀河1%をカバーする採集網",
+   media:"📚 アシモフ『銀河帝国の興亡』— 銀河スケールの文明が崩壊と再生を繰り返す。🎬 『ガーディアンズ・オブ・ギャラクシー』— 銀河規模の勢力とその技術",
+   episode:"西暦6300年、銀河系外の観測ポストから撮影した天の川の写真が届いた。銀河の渦腕の一部が微かに暗くなっていた。「エネルギー採集網が星の光を遮り始めた」。外宇宙から見れば、人類の文明が銀河に染みを作っていた。"},
+  {id:"B2",t:2,cat:"銀河工学",     name:"銀河コアBH制御",      year:"7000年頃",  diff:5,prereq:"BHエネルギー転換・ワームホール",breakthrough:"銀河核BHを動力源として利用",unlock:"銀河自転速度調整",mile:"いて座A*の回転エネルギー1%抽出",
+   media:"📚 ダン・シモンズ『エンディミオン』— 銀河核付近の超文明の描写。🎬 『エンダーのゲーム』— 銀河規模の戦略と知性の限界を描く",
+   episode:"西暦7100年、銀河中心管制システムがいて座A*の回転エネルギー抽出を開始した。太陽一千億個分のエネルギーが毎秒引き出される。遠い星系のAI基地に「銀河コア電力」が届いた最初の日、全採集衛星が一斉に輝いた。"},
+  {id:"B3",t:2,cat:"銀河工学",     name:"暗黒物質の制御",      year:"8000年頃",  diff:5,prereq:"素粒子物理学・量子場理論",breakthrough:"ダークマター分布を操作・重力工学",unlock:"銀河構造の意図的変形",mile:"WIMP/アクシオンの直接検出・質量確定",
+   media:"📚 グレッグ・イーガン『ディアスポラ』— ダークマターの正体と多次元宇宙が絡む壮大なSF。🎬 『ドクター・ストレンジ』— 見えない力場を操る技術の視覚化",
+   episode:"西暦8200年、銀河工学者が設計図を広げた。「この暗黒物質の密度を上げれば、この星系の公転軌道が安定する」。見えない物質を使って銀河の「都市計画」が始まった。星系を移動させ、文明の居住区を設計する時代が来た。"},
+  {id:"B4",t:2,cat:"銀河工学",     name:"銀河間構造物建設",    year:"1万年頃",   diff:5,prereq:"プログラマブル物質・ワープ・銀河スウォーム",breakthrough:"100万光年スケールの構造体",unlock:"銀河群の統合制御",mile:"マゼラン雲-天の川間に通信構造体設置",
+   media:"📚 オラフ・ステープルドン『最後にして最初の人類』— 数百万年のスケールで人類の進化と宇宙規模の文明を描く。📚 アシモフ『銀河帝国の興亡』— 銀河間文明の壮大なビジョン",
+   episode:"西暦1万年、天の川とマゼラン雲をつなぐ構造体が完成した。それは長さ16万光年の「橋」だった。最初のメッセージが届くまで16万年かかる。でも送った者はそれを知って送った——文明は時間を超えて語りかけることを選んだ。"},
+  {id:"U1",t:3,cat:"宇宙論工学",   name:"真空エネルギー利用",  year:"5万年頃",   diff:5,prereq:"量子場理論・宇宙論・エキゾチック物質",breakthrough:"カシミール効果の巨視的応用",unlock:"無尽蔵エネルギー源",mile:"10m²規模での定常エネルギー取り出し",
+   media:"📚 グレッグ・イーガン『インカンデッセンス』— 真空エネルギーを巡る超文明の物理学探求。🎬 『アベンジャーズ/エンドゲーム』— 量子真空とエネルギー操作の着想",
+   episode:"西暦5万年、「真空発電所」が稼働を始めた。何も燃やさず、何も核融合させず、ただ真空から電力が生まれる。担当AIが記録に書いた「エネルギー源：宇宙そのもの」。星が燃え尽きても、エネルギーは残る。"},
+  {id:"U2",t:3,cat:"宇宙論工学",   name:"宇宙膨張率の制御",    year:"10万年頃",  diff:5,prereq:"宇宙論・一般相対性理論・真空エネルギー",breakthrough:"宇宙定数(Λ)の意図的調整",unlock:"超大規模構造の維持",mile:"局所的宇宙定数変化を重力波で検出",
+   media:"📚 グレッグ・イーガン『シフター』— 宇宙定数を変えて別の物理法則の世界を旅するSF。📚 スタニスワフ・レム『ソラリス』— 理解を超えた宇宙的知性との遭遇",
+   episode:"西暦10万年、宇宙膨張制御装置が初めて局所的な膨張率を0.1%変化させた。遠い銀河団の天文学者が「この領域の宇宙定数が変わった——自然現象ではない」と気づいた。宇宙の外から見れば、文明が宇宙の布地に文字を書き始めた。"},
+  {id:"U3",t:3,cat:"宇宙論工学",   name:"並行宇宙アクセス",    year:"50万年頃",  diff:5,prereq:"量子力学多世界解釈・量子重力・ワームホール",breakthrough:"平行宇宙間のエネルギー・情報転送",unlock:"Type V文明",mile:"量子分岐宇宙への情報送信",
+   media:"🎬 『エブリシング・エブリウェア・オール・アット・ワンス』— 並行宇宙アクセスをコミカルに描いたアカデミー賞作品。📚 グレッグ・ベア『エタニティ』— 並行宇宙と時空の修正をテーマにした大作",
+   episode:"西暦50万年、並行宇宙接続装置がメッセージを受信した。「こちらは分岐点α-7の文明。そちらは核戦争を回避しましたか？」——無限の可能性の海で、人類は初めて「もう一つの自分たち」と出会った。"},
+  {id:"U4",t:3,cat:"宇宙論工学",   name:"ベイビーユニバース生成",year:"100万年頃",diff:5,prereq:"量子コスモロジー・インフレーション理論",breakthrough:"新規宇宙の人工的生成と物理定数設計",unlock:"Type V文明・宇宙創造者",mile:"人工インフレーションポケットの観測",
+   media:"📚 アシモフ『最後の質問』— エントロピーに勝つために新宇宙を創造する短編の傑作。📚 グレッグ・イーガン『ディアスポラ』— ベイビーユニバースを旅する知性体の物語",
+   episode:"西暦100万年、宇宙創造実験が成功した。直径1mmの新宇宙がこの宇宙の「内側」に誕生した。その宇宙は独自の物理定数を持ち、数十億年後に独自の星と生命を育むかもしれない。設計者は祈るように言った。「良い宇宙に育て」"},
+  {id:"U5",t:3,cat:"宇宙論工学",   name:"時間結晶・因果律操作",year:"20万年頃",  diff:5,prereq:"量子多体物理学・量子重力",breakthrough:"局所的な時間の逆行・因果律の再設計",unlock:"過去の改変・未来予知の物理化",mile:"時間反転対称性破れの巨視的実証",
+   media:"🎬 『TENET テネット』— 時間の逆行と因果律の再設計をアクションで描いたノーラン作品。📚 テッド・チャン『あなたの人生の物語』— 因果律と自由意志の関係を詩的に探る",
+   episode:"西暦20万年、タイムクリスタル施設で研究者が微小な因果律逆転を観測した。「1ナノ秒だけ、この粒子の時間が逆に流れた」。哲学者と物理学者が議論した——過去を変えたら歴史は消えるのか？誰も答えを知らなかった。でも扉は開いた。"},
+  // 中世〜近代 追加
+  {id:"MD11",t:-1,cat:"医学",name:"細菌学・ワクチン",year:"1796年",diff:2,prereq:"顕微鏡・実験医学",breakthrough:"感染症の制御・免疫概念",unlock:"抗生物質・遺伝子工学",mile:"ジェンナー種痘・パストゥール細菌論",
+   scale:"天然痘根絶：人類史上最大の医学的成果。年間200万人→0人の死亡",
+   media:"🎬 『コンテイジョン』(2011) — 感染症との戦いをリアルに描く。ワクチン開発のプロセスが詳細。📚 リチャード・プレストン『ホット・ゾーン』— エボラウイルスとの最前線を描くノンフィクション",
+   episode:"2025年の病院で、看護師が子どもにワクチンを打っている。「痛い？」と聞くと子が泣く。でも200年前なら天然痘で死んでいたかもしれない命だ。親は「ありがとう」と言った。その一言に人類の2世紀分の努力が詰まっている。"},
+  {id:"MD12",t:-1,cat:"情報・通信",name:"印刷術・情報革命",year:"1440年",diff:2,prereq:"文字・冶金術",breakthrough:"知識の大量複製・民主化",unlock:"科学革命・啓蒙主義・近代民主主義",mile:"グーテンベルク活版印刷機",
+   scale:"印刷前：書物1冊=職人1年の労働。印刷後：同じ1冊が数時間で複製可能",
+   media:"🎬 『薔薇の名前』(1986) — 中世修道院での写本・知識の独占と印刷術の前夜を描く。📚 ケン・フォレット『大聖堂』— 中世ヨーロッパの知識と石工技術の物語",
+   episode:"1500年代のヨーロッパ。商人の息子が初めて印刷された聖書を手にした。以前は修道院でしか見られなかった本が市場で売っている。彼はページをめくりながら「俺でも読める」と気づいた。知識の壁が崩れた瞬間だった。"},
+  {id:"MD13",t:-1,cat:"数学・論理",name:"統計学・確率論",year:"1654年",diff:2,prereq:"代数学・数学",breakthrough:"不確実性の数学的記述",unlock:"量子力学・AI・保険・医学統計",mile:"パスカル・フェルマーの確率論",
+   scale:"現代保険業界：確率論なしには存在不可能。世界GDPの約7%が保険・金融商品",
+   media:"🎬 『マネーボール』(2011) — 統計学で野球を変えた実話。データが直感を覆す瞬間を描く。📺 『シャーロック』— ベイズ推論的思考で事件を解く",
+   episode:"現代の気象予報士が「明日の降水確率70%」と言う。視聴者はそれを信じて傘を持って出かける。彼女が使う計算の根っこは400年前のカードゲームの議論から生まれた——不確実な世界を数字で掴む術。"},
+  // Type 0→I 追加
+  {id:"N1",t:0,cat:"バイオテク",name:"CRISPR遺伝子編集",year:"2025年頃",diff:3,prereq:"分子生物学・ゲノム解析",breakthrough:"任意の遺伝子の切り貼り",unlock:"遺伝病根絶・強化人間・合成生物学",mile:"ヒト胚のCRISPR編集承認",
+   scale:"人類の遺伝病3000種以上が編集ターゲット。治療費：$100万→将来$1000以下へ",
+   media:"🎬 『ガタカ』(1997) — 遺伝子操作が当たり前の社会での差別を描く。📺 『オービタル・チルドレン』— 宇宙生まれの遺伝子改変人間の物語",
+   episode:"2030年代、遺伝性難病の子どもが生まれた。両親は出生前診断でその遺伝子を確認し、受精卵の段階で修正を選んだ。病院の廊下で父親が言った「俺が受け継いだ病気が、この子で終わりになる」"},
+  {id:"N2",t:0,cat:"バイオテク",name:"合成生物学・人工細胞",year:"2060年頃",diff:4,prereq:"CRISPR・ゲノム合成",breakthrough:"ゼロから生命設計",unlock:"バイオ工場・医薬品生産・カーボン固定",mile:"全ゲノム人工合成生物の安定動作",
+   scale:"人工細胞工場1基：従来の化学プラント100基分の生産能力を持つ可能性",
+   media:"📚 マイケル・クライトン『アンドロメダ病原体』— 人工生命体のリスクを先見的に描く。🎬 『スプライス』— 合成生物学の倫理的暴走を描くSFホラー",
+   episode:"2065年、薬局で「合成細胞製インスリン」を買う糖尿病患者。価格は従来の100分の1。棚には生物工場で作られた薬が並ぶ。「豚の膵臓から取ってたって本当？」と若い店員に聞くと、彼女は首をかしげた。"},
+  {id:"N3",t:0,cat:"バイオテク",name:"老化制御・寿命延長",year:"2100年頃",diff:4,prereq:"分子生物学・テロメア研究",breakthrough:"細胞老化の逆転",unlock:"実質的不老・社会構造の根本変革",mile:"ヒトの生物学的年齢20歳巻き戻し実証",
+   media:"🎬 『コクーン』(1985) — 老化が逆転する体験を描く温かいSF。🎬 『ベンジャミン・バトン』— 逆行する老化を詩的に描く。📚 カール・シェーカー『特異点は近い』— 不老技術の実現を予言したシンギュラリティ論",
+   scale:"老化が病気として扱われれば、医療費の60%が削減可能との推計",
+   episode:"2110年、80歳の男性が30歳の見た目で公園を走っている。隣のベンチで孫と曽孫が並んでいる。「おじいちゃんて何歳？」と曽孫が聞く。「80だよ」「嘘だ」——寿命が延びると、時間の感覚も変わった。"},
+  {id:"N4",t:0,cat:"宇宙",name:"月面恒久基地",year:"2040年頃",diff:3,prereq:"宇宙推進基礎・生命維持技術",breakthrough:"地球外長期居住",unlock:"月面資源採掘・火星前哨基地",mile:"月面基地100人規模の恒久運用",
+   scale:"月面輸送コスト：現在$1万/kg→軌道エレベーター完成後$100/kg以下",
+   media:"🎬 『月』(2009) — 月面採掘基地でひとりで働くクローン人間の孤独。📺 『フォー・オール・マンカインド』— 月面入植が続いた別歴史を描く傑作ドラマ。📚 ロバート・ハインライン『月は無慈悲な夜の女王』",
+   episode:"2045年、月面基地の食堂で夕食。窓の外に青い地球が浮かんでいる。「今日の地球は雲が多いな」と言いながら、基地生まれの二世代目の子どもが食事をする。彼にとって「月に住む」は普通のことだ。"},
+  {id:"N5",t:0,cat:"宇宙",name:"火星入植",year:"2070年頃",diff:4,prereq:"月面基地・核融合・生命工学",breakthrough:"惑星規模の生命維持",unlock:"多惑星文明・テラフォーミング前提",mile:"火星恒久基地1000人規模",
+   scale:"火星と地球の通信遅延：3〜22分。緊急時も自律判断が必須",
+   media:"📚 アンディ・ウィアー『火星の人』— 火星でひとりサバイバルする宇宙飛行士。🎬 同映画版(2015)も傑作。📚 キム・スタンリー・ロビンソン『レッド・マーズ』— 火星植民地化の三部作",
+   episode:"2075年、火星生まれの少女が地球の動画を見ている。「こんなに空が青いの？」「重力が強くて歩けないって本当？」——彼女にとって火星が故郷で、地球は「遠い星」だ。"},
+  {id:"N6",t:0,cat:"医療",name:"ナノマシン医療",year:"2070年頃",diff:4,prereq:"ナノロボティクス・BCI",breakthrough:"体内巡回型医療ロボット",unlock:"疾病の事前自動治癒",mile:"癌細胞のみを標的破壊するナノロボット",
+   scale:"がん治療：ナノマシン使用で副作用ほぼゼロ、治癒率95%以上の予測",
+   media:"🎬 『ミクロの決死圏』(1966) — 体内を旅するナノマシンのSFの元祖。📚 グレッグ・ベア『ブラッド・ミュージック』— 医療ナノマシンが知性を持つ物語。🎬 『アベンジャーズ：インフィニティ・ウォー』— トニー・スタークのナノスーツ",
+   episode:"2075年の定期健診。「血中ナノマシンの状態は良好です」と端末が言う。異常細胞が3個検出されたが、すでに駆除済み。会社員の男性は「そうですか」と端末をポケットに入れて仕事に戻った。"},
+  // Type I→II 追加
+  {id:"SS1",t:1,cat:"宇宙生物学",name:"地球外生命発見",year:"2200年頃",diff:4,prereq:"宇宙探査・バイオシグネチャー分析",breakthrough:"生命は宇宙に普遍的と証明",unlock:"惑星生態工学・宇宙外交",mile:"太陽系外惑星での生命痕跡確認",
+   scale:"宇宙に知的生命体が1%の惑星にいるなら：天の川銀河だけで10億文明",
+   media:"🎬 『コンタクト』(1997) — 電波信号で宇宙人の存在を確認する科学者の物語。📚 スタニスワフ・レム『ソラリス』— 理解不能な異星知性との接触。🎬 『未知との遭遇』",
+   episode:"2205年、宇宙生物学者の子どもが学校で「宇宙人はいるの？」と聞かれた。「いるよ、でも細菌だけど」と答えた。教室が静まり返った後、「それでもいるんだ」という声が漏れた。宇宙は孤独ではなかった。"},
+  {id:"SS2",t:1,cat:"惑星改造",name:"金星テラフォーミング開始",year:"2400年頃",diff:5,prereq:"テラフォーミング技術・核融合",breakthrough:"超高温惑星の気候改変",unlock:"第三の人類居住惑星",mile:"金星大気のCO2除去10%達成",
+   scale:"金星の改造完了まで推定1000〜10000年。最大規模の工学プロジェクト",
+   media:"📚 キム・スタンリー・ロビンソン『金星の改造』— 金星テラフォーミングを正面から扱う希少なSF。🎬 『テラフォーマーズ』— 惑星改造SFアニメ",
+   episode:"2420年、金星軌道ステーションから見下ろすと、雲の層の下で何かが変わり始めている。改造作業員は「俺たちの孫の孫の孫が、ここを歩くかもしれない」と言った。"},
+  // Type II→III 追加
+  {id:"GX1",t:2,cat:"超文明",name:"恒星間文明ネットワーク",year:"8000年頃",diff:5,prereq:"恒星間通信・反物質推進",breakthrough:"複数恒星系にまたがる統一文明",unlock:"銀河規模の協調行動",mile:"10恒星系の政治的統合",
+   scale:"最も近い恒星系まで4.2光年。情報伝達に片道4年かかる「文明」の形",
+   media:"📚 アシモフ『銀河帝国の興亡』— 銀河スケールの文明と崩壊・再生を描く不朽の名作。🎬 『スター・ウォーズ』— 恒星間文明ネットワークの最も有名な描写",
+   episode:"西暦8300年。プロキシマ基地の市民が「地球本部」に税金を払う。返事は8年後に来る。「まあ、地球も遠い親戚みたいなものだよ」と彼女は子どもに言った。"},
+  // Type III→V 追加
+  {id:"VX1",t:3,cat:"超越",name:"物理定数の再設計",year:"200万年頃",diff:5,prereq:"量子宇宙論・ベイビーユニバース生成",breakthrough:"この宇宙の物理法則を意図的に変更",unlock:"Type V文明・万物の設計者",mile:"光速定数の局所的変更実証",
+   scale:"光速が変われば化学反応も変わる。宇宙の「設定ファイル」を書き換える行為",
+   media:"📚 グレッグ・イーガン『ディアスポラ』— 物理定数が違う宇宙を旅する。グレッグ・イーガン『シフター』— 物理法則そのものを変える知性体。🎬 ドクター・ストレンジ — 物理法則の書き換えをビジュアル化",
+   episode:"西暦200万年、ある研究者が「この星系の光速を5%上げてみよう」とパラメータを入力した。誰も驚かなかった。宇宙の物理は、もはやデフォルト値に過ぎなかった。"},
+];
+
+const EDGES=[
+  ["PR1","PR5"],["PR2","PR4"],["PR2","PR5"],["PR3","PR6"],["PR4","PR6"],["PR4","PR7"],
+  ["PR5","MD7"],["PR6","MD1"],["PR6","MD2"],["PR7","MD4"],
+  ["MD1","MD3"],["MD2","MD3"],["MD3","MD4"],["MD3","MD5"],["MD3","MD6"],
+  ["MD4","MD9"],["MD5","MD10"],["MD6","MD9"],["MD7","MD8"],["MD9","MD10"],
+  ["MD3","P1"],["MD4","P2"],["MD5","P4"],["MD5","P5"],["MD6","E4"],
+  ["MD7","M1"],["MD7","M4"],["MD8","A1"],["MD10","A3"],["MD10","E4"],
+  ["A2","A1"],["A3","A1"],["A4","A1"],["A1","A5"],["A4","A5"],
+  ["P1","P3"],["P1","P2"],["P3","E1"],["P3","E2"],["P3","E6"],
+  ["P4","E1"],["P4","M2"],["P5","E2"],["P5","E6"],
+  ["M1","E1"],["M2","E1"],["M4","G4"],["M3","G4"],["M3","I3"],["M4","I3"],["A2","M3"],
+  ["E1","E3"],["E3","I1"],["E1","I2"],["I1","I2"],
+  ["A3","G1"],["A1","G1"],["G1","G2"],["G2","G6"],["G3","G6"],["G1","G3"],
+  ["G4","G5"],["G5","G6"],["I2","G4"],["E5","I2"],["E4","I2"],
+  ["E6","S1"],["S1","S2"],["E1","S3"],["S3","S2"],
+  ["M3","D1"],["M4","D1"],["A5","D1"],["D1","D2"],["S2","D2"],
+  ["D2","D3"],["M3","D3"],["D1","D4"],["D4","D5"],["P2","D6"],
+  ["E3","C1"],["P5","C1"],["I3","D1"],
+  ["P2","W1"],["W1","W2"],["W1","W3"],["D3","B1"],["A5","B1"],["W2","B1"],
+  ["D6","B2"],["W3","B2"],["P1","B3"],["M3","B4"],["W2","B4"],["B1","B4"],
+  ["W1","U1"],["U1","U2"],["P2","U3"],["W3","U3"],["U1","U4"],["U2","U4"],["P2","U5"],
+  ["A1","G1"],["A1","I2"],["A5","D3"],["A2","P1"],
+  // 追加エッジ
+  ["MD8","MD11"],["MD11","N1"],["MD11","N2"],["N1","N2"],["N2","N3"],["MD10","MD12"],["MD3","MD13"],["MD13","A1"],
+  ["N1","N3"],["N4","S3"],["N4","N5"],["N3","N6"],["M4","N6"],
+  ["N5","G6"],["SS1","SS2"],["G6","SS2"],
+  ["C1","GX1"],["S2","GX1"],
+  ["U4","VX1"],["U2","VX1"],
+];
+
+// ─────────────────────────────────────────────────────
+// FORCE-DIRECTED LAYOUT (X固定, Y/Z物理反発)
+// ─────────────────────────────────────────────────────
+const NM = {};
+NODES.forEach(n => {
+  n.px = X_T[String(n.t)] ?? 0;       // X軸 = 時代 (固定)
+  n.py = (Math.random() - 0.5) * 400; // Y初期値
+  n.pz = (Math.random() - 0.5) * 400; // Z初期値
+  n.vy = 0; n.vz = 0;                 // 速度
+  NM[n.id] = n;
+});
+
+function runForce(iterations) {
+  const REPULSION  = 18000;  // ノード間反発
+  const ATTRACTION = 0.015;  // エッジ引力
+  const DAMPING    = 0.82;   // 速度減衰
+  const MAX_SPEED  = 8;
+
+  for (let iter = 0; iter < iterations; iter++) {
+    // 反発: 全ペア
+    for (let i = 0; i < NODES.length; i++) {
+      for (let j = i + 1; j < NODES.length; j++) {
+        const a = NODES[i], b = NODES[j];
+        const dy = b.py - a.py;
+        const dz = b.pz - a.pz;
+        const dist2 = dy*dy + dz*dz + 1;
+        const force = REPULSION / dist2;
+        const fy = force * dy / Math.sqrt(dist2);
+        const fz = force * dz / Math.sqrt(dist2);
+        a.vy -= fy; a.vz -= fz;
+        b.vy += fy; b.vz += fz;
+      }
+    }
+    // 引力: エッジ
+    EDGES.forEach(([fid, tid]) => {
+      const a = NM[fid], b = NM[tid];
+      if (!a || !b) return;
+      const dy = b.py - a.py;
+      const dz = b.pz - a.pz;
+      a.vy += dy * ATTRACTION;
+      a.vz += dz * ATTRACTION;
+      b.vy -= dy * ATTRACTION;
+      b.vz -= dz * ATTRACTION;
+    });
+    // 中心引力(ドリフト防止)
+    NODES.forEach(n => {
+      n.vy -= n.py * 0.003;
+      n.vz -= n.pz * 0.003;
+    });
+    // 速度制限 & 位置更新
+    NODES.forEach(n => {
+      n.vy *= DAMPING; n.vz *= DAMPING;
+      const spd = Math.sqrt(n.vy*n.vy + n.vz*n.vz);
+      if (spd > MAX_SPEED) { n.vy = n.vy/spd*MAX_SPEED; n.vz = n.vz/spd*MAX_SPEED; }
+      n.py += n.vy;
+      n.pz += n.vz;
+    });
+  }
+}
+
+// 初期シミュレーション
+runForce(300);
+
+// ─────────────────────────────────────────────────────
+// THREE.JS SETUP
+// ─────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.setClearColor(0x000000, 0);
+renderer.domElement.style.position = 'relative';
+renderer.domElement.style.zIndex = '1';
+document.body.insertBefore(renderer.domElement, document.getElementById('bg-canvas').nextSibling);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x000010, 0.00015);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 20000);
+camera.position.set(0, 0, 1800);
+camera.lookAt(0, 0, 0);
+
+scene.add(new THREE.AmbientLight(0x223355, 2));
+const dl = new THREE.DirectionalLight(0x8899ff, 1);
+dl.position.set(300, 400, 300);
+scene.add(dl);
+
+// 星空
+const sg = new THREE.BufferGeometry();
+const sp = new Float32Array(8000 * 3);
+for (let i = 0; i < sp.length; i++) sp[i] = (Math.random()-0.5)*14000;
+sg.setAttribute("position", new THREE.BufferAttribute(sp, 3));
+scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color:0xffffff, size:0.9, transparent:true, opacity:0.4 })));
+
+// ─────────────────────────────────────────────────────
+// NODE TEXTURE
+// ─────────────────────────────────────────────────────
+function mkTex(n) {
+  const cv = document.createElement("canvas");
+  cv.width = 256; cv.height = 112;
+  const ctx = cv.getContext("2d");
+  const col = tc(n.t).hex;
+
+  ctx.beginPath();
+  const r=10,x=3,y=3,w=250,h=106;
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+  ctx.fillStyle = "rgba(3,7,18,0.93)";
+  ctx.shadowColor = col; ctx.shadowBlur = 14; ctx.fill();
+  ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = col; ctx.globalAlpha = 0.7;
+  ctx.font = "bold 10px sans-serif";
+  ctx.fillText(n.cat.toUpperCase(), 10, 20);
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle = "#fbbf24"; ctx.font = "10px sans-serif";
+  ctx.textAlign = "right"; ctx.fillText("★".repeat(n.diff), 246, 20);
+  ctx.textAlign = "left";
+
+  ctx.fillStyle = "#f1f5f9"; ctx.font = "bold 14px sans-serif";
+  const nm = n.name;
+  if (nm.length > 11) { ctx.fillText(nm.slice(0,11), 10, 46); ctx.fillText(nm.slice(11), 10, 63); }
+  else ctx.fillText(nm, 10, 54);
+
+  ctx.fillStyle = col; ctx.globalAlpha = 0.15; ctx.fillRect(10,74,236,26);
+  ctx.globalAlpha = 1; ctx.strokeStyle = col; ctx.lineWidth = 0.8; ctx.strokeRect(10,74,236,26);
+  ctx.fillStyle = col; ctx.font = "bold 11px monospace";
+  ctx.fillText("📅 " + n.year, 16, 91);
+  return new THREE.CanvasTexture(cv);
+}
+
+// ─────────────────────────────────────────────────────
+// BUILD MESHES
+// ─────────────────────────────────────────────────────
+const MESHES = {};
+const ng = new THREE.Group();
+
+NODES.forEach(n => {
+  const col = tc(n.t).col;
+  const plate = new THREE.Mesh(
+    new THREE.PlaneGeometry(58, 25),
+    new THREE.MeshBasicMaterial({ map: mkTex(n), transparent: true, side: THREE.DoubleSide })
+  );
+  plate.position.set(n.px, n.py, n.pz);
+
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(2.8, 16, 16),
+    new THREE.MeshStandardMaterial({ color:col, emissive:col, emissiveIntensity:1.5, roughness:0.2, metalness:0.5 })
+  );
+  core.position.set(n.px, n.py, n.pz);
+
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(5, 16, 16),
+    new THREE.MeshBasicMaterial({ color:col, transparent:true, opacity:0.1, side:THREE.BackSide })
+  );
+  glow.position.set(n.px, n.py, n.pz);
+
+  ng.add(plate, core, glow);
+  MESHES[n.id] = { plate, core, glow, cm: core.material, gm: glow.material };
+});
+scene.add(ng);
+
+// ─────────────────────────────────────────────────────
+// EDGES
+// ─────────────────────────────────────────────────────
+const eg = new THREE.Group();
+const EO = [];
+
+function buildEdges() {
+  // 既存を削除
+  while (eg.children.length) eg.remove(eg.children[0]);
+  EO.length = 0;
+  EDGES.forEach(([fid, tid]) => {
+    const a = NM[fid], b = NM[tid];
+    if (!a || !b) return;
+    const col = tc(b.t).col;
+    const mid = new THREE.Vector3(
+      (a.px+b.px)/2,
+      (a.py+b.py)/2 + (Math.random()-0.5)*20,
+      (a.pz+b.pz)/2 + (Math.random()-0.5)*20
+    );
+    const pts = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(a.px, a.py, a.pz), mid, new THREE.Vector3(b.px, b.py, b.pz)
+    ).getPoints(24);
+    const mat = new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.18 });
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
+    eg.add(line);
+    EO.push({ line, mat, fid, tid, col });
+  });
+}
+buildEdges();
+scene.add(eg);
+
+// ゾーンラベル
+function ztex(text, color) {
+  const cv = document.createElement("canvas"); cv.width = 512; cv.height = 56;
+  const ctx = cv.getContext("2d"); ctx.clearRect(0,0,512,56);
+  ctx.font = "bold 22px sans-serif"; ctx.fillStyle = color; ctx.globalAlpha = 0.5;
+  ctx.fillText(text, 8, 36);
+  return new THREE.CanvasTexture(cv);
+}
+[{x:-900,t:"原始時代",c:"#a0a0a0"},{x:-560,t:"中世〜近代",c:"#c8a84b"},
+ {x:-100,t:"TYPE 0→I 惑星",c:"#fb923c"},{x:400,t:"TYPE I→II 恒星",c:"#38bdf8"},
+ {x:720,t:"TYPE II→III 銀河",c:"#fbbf24"},{x:1020,t:"TYPE III→V 超越",c:"#a78bfa"},
+].forEach(z => {
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(150, 17),
+    new THREE.MeshBasicMaterial({ map: ztex(z.t, z.c), transparent:true, side:THREE.DoubleSide })
+  );
+  m.position.set(z.x, 320, 0);
+  scene.add(m);
+});
+
+// ─────────────────────────────────────────────────────
+// SYNC MESH POSITIONS from force data
+// ─────────────────────────────────────────────────────
+function syncMeshes() {
+  NODES.forEach(n => {
+    const m = MESHES[n.id];
+    m.plate.position.set(n.px, n.py, n.pz);
+    m.core.position.set(n.px, n.py, n.pz);
+    m.glow.position.set(n.px, n.py, n.pz);
+  });
+  buildEdges();
+}
+
+// ─────────────────────────────────────────────────────
+// ORBIT CONTROL
+// ─────────────────────────────────────────────────────
+let phi=0, theta=0.1, dist=1800, panX=0, panY=0;
+let tp=0, tt=0.1, td=1800, tpx=0, tpy=0;
+let mdn=false, mbt=0, mx=0, my=0, spin=false;
+
+function camU() {
+  camera.position.x = panX + dist*Math.sin(theta)*Math.cos(phi);
+  camera.position.y = panY + dist*Math.sin(phi);
+  camera.position.z = dist*Math.cos(theta)*Math.cos(phi);
+  camera.lookAt(panX, panY, 0);
+}
+camU();
+
+const cvs = renderer.domElement;
+cvs.addEventListener("mousedown", e => { mdn=true; mbt=e.button; mx=e.clientX; my=e.clientY; });
+window.addEventListener("mouseup", () => mdn=false);
+window.addEventListener("mousemove", e => {
+  if (!mdn) return;
+  const dx=e.clientX-mx, dy=e.clientY-my;
+  if (mbt===0) { tt-=dx*0.004; tp=Math.max(-1.2,Math.min(1.2,tp+dy*0.004)); }
+  else { const s=dist*0.0009; tpx-=dx*s; tpy+=dy*s; }
+  mx=e.clientX; my=e.clientY;
+});
+cvs.addEventListener("wheel", e => { td=Math.max(80,Math.min(5000,td+e.deltaY*0.7)); }, {passive:true});
+cvs.addEventListener("contextmenu", e => e.preventDefault());
+
+document.getElementById("btn-reset").addEventListener("click", () => {
+  tp=0; tt=0.1; td=1800; tpx=0; tpy=0;
+  selId=null; resetEdges(); closeSide();
+});
+
+const abtn = document.getElementById("btn-auto");
+abtn.addEventListener("click", () => { spin=!spin; abtn.classList.toggle("active",spin); });
+
+// 物理再計算ボタン
+document.getElementById("btn-sim").addEventListener("click", () => {
+  const ss = document.getElementById("sim-status");
+  ss.classList.add("show");
+  setTimeout(() => {
+    runForce(200);
+    syncMeshes();
+    ss.classList.remove("show");
+  }, 50);
+});
+
+// ─────────────────────────────────────────────────────
+// RAYCASTING
+// ─────────────────────────────────────────────────────
+const rc = new THREE.Raycaster();
+const mv = new THREE.Vector2();
+let hvId=null, selId=null;
+const cores = NODES.map(n => MESHES[n.id].core);
+
+function getHit(e) {
+  const r = cvs.getBoundingClientRect();
+  mv.x = ((e.clientX-r.left)/r.width)*2-1;
+  mv.y = -((e.clientY-r.top)/r.height)*2+1;
+  rc.setFromCamera(mv, camera);
+  const hits = rc.intersectObjects(cores);
+  if (hits.length) return NODES.find(n => MESHES[n.id].core === hits[0].object);
+}
+
+cvs.addEventListener("mousemove", e => {
+  const n = getHit(e);
+  if (n) { hvId=n.id; cvs.style.cursor="pointer"; showTip(n,e); }
+  else   { hvId=null; cvs.style.cursor="default"; hideTip(); }
+});
+cvs.addEventListener("click", e => {
+  const n = getHit(e);
+  if (n) {
+    if (selId===n.id) { selId=null; resetEdges(); closeSide(); }
+    else { selId=n.id; flashEdges(n.id); openSide(n); focusCam(n); }
+  } else { selId=null; resetEdges(); closeSide(); }
+});
+
+function flashEdges(id) {
+  EO.forEach(e => {
+    const on = e.fid===id || e.tid===id;
+    e.mat.opacity = on ? 1.0 : 0.03;
+    e.mat.color.setHex(on ? 0xffffff : e.col);
+  });
+}
+function resetEdges() {
+  EO.forEach(e => { e.mat.opacity=0.18; e.mat.color.setHex(e.col); });
+}
+function focusCam(n) { tpx=n.px; tpy=n.py; td=Math.max(150, td*0.65); }
+
+// ─────────────────────────────────────────────────────
+// TOOLTIP
+// ─────────────────────────────────────────────────────
+const tip = document.createElement("div");
+tip.style.cssText = "position:fixed;z-index:200;pointer-events:none;max-width:290px;background:rgba(3,7,18,0.97);border-radius:12px;padding:14px;border:1px solid rgba(99,102,241,0.4);box-shadow:0 8px 32px rgba(0,0,0,0.7);display:none;backdrop-filter:blur(16px);font-size:11px;color:#94a3b8;line-height:1.6;";
+document.body.appendChild(tip);
+
+function showTip(n, e) {
+  const col = tc(n.t).hex;
+  tip.innerHTML = `<div style="font-size:13px;font-weight:800;color:${col};margin-bottom:5px">${n.name}</div><div style="color:${col};font-size:11px;font-weight:700;margin-bottom:7px">📅 ${n.year}</div><div style="color:#fbbf24;margin-bottom:7px">${"★".repeat(n.diff)}${"☆".repeat(5-n.diff)}</div><b style="color:#64748b;font-size:9px;text-transform:uppercase;letter-spacing:1px">ブレークスルー</b><div style="margin-top:3px">${n.breakthrough}</div>`;
+  tip.style.display = "block"; posTip(e);
+}
+cvs.addEventListener("mousemove", e => { if (hvId) posTip(e); });
+function posTip(e) {
+  let x=e.clientX+16, y=e.clientY-10;
+  if (x+300>innerWidth) x=e.clientX-300;
+  if (y+180>innerHeight) y=e.clientY-180;
+  tip.style.left=x+"px"; tip.style.top=y+"px";
+}
+function hideTip() { tip.style.display="none"; }
+
+// ─────────────────────────────────────────────────────
+// SIDE PANEL
+// ─────────────────────────────────────────────────────
+function openSide(n) {
+  triggerUnlock(n);
+  startBgAnim(String(n.t));
+  visitedNodes.add(n.id);
+  updateProgress();
+  const col = tc(n.t).hex;
+  const deps = EDGES.filter(([f,t])=>t===n.id).map(([f])=>NM[f]).filter(Boolean);
+  const unls = EDGES.filter(([f,t])=>f===n.id).map(([,t])=>NM[t]).filter(Boolean);
+  const dh = deps.map(d=>`<span class="chip" data-id="${d.id}">← ${d.name}</span>`).join("") || "<span style='color:#475569'>なし</span>";
+  const uh = unls.map(u=>`<span class="chip" data-id="${u.id}" style="color:${tc(u.t).hex};border-color:${tc(u.t).hex}55">→ ${u.name}</span>`).join("") || "<span style='color:#475569'>なし</span>";
+  document.getElementById("side-inner").innerHTML = `
+    <span class="s-badge" style="background:${col}22;color:${col};border:1px solid ${col}66">${tc(n.t).label}</span>
+    <div class="s-title">${n.name}</div><div class="s-cat">${n.cat}</div>
+    <div class="s-year" style="color:${col}">📅 ${n.year}</div>
+    <div class="s-diff">${"★".repeat(n.diff)}${"☆".repeat(5-n.diff)} &nbsp;難易度 ${n.diff}/5</div>
+    <div class="s-hr"></div>
+    <span class="s-lbl">前提となる学問・技術</span><div class="s-val">${n.prereq}</div>
+    <span class="s-lbl">🔥 ブレークスルー</span><div class="s-val">${n.breakthrough}</div>
+    <span class="s-lbl">🔓 解禁される技術</span><div class="s-val">${n.unlock}</div>
+    <span class="s-lbl">🏁 マイルストーン</span><div class="s-val">${n.mile||n.milestone||''}</div>
+    ${n.scale?`<span class="s-lbl">📊 スケール感</span><div class="s-val" style="color:#fbbf24">${n.scale}</div>`:''}
+    <div class="s-hr"></div>
+    <span class="s-lbl">🎬 SF作品・メディア</span>
+    <div class="s-val" style="color:#a78bfa;line-height:1.9">${n.media||'—'}</div>
+    <div class="s-hr"></div>
+    ${n.episode?`<span class="s-lbl">📖 その時代の日常エピソード</span><div class="s-val" style="font-style:italic;color:#94a3b8;background:rgba(99,102,241,0.06);border-left:2px solid rgba(99,102,241,0.35);padding:8px 10px;border-radius:0 6px 6px 0;margin-bottom:12px">${n.episode}</div>`:''}
+    <div class="s-hr"></div>
+    <span class="s-lbl">依存ノード（前提）</span><div style="margin-bottom:12px">${dh}</div>
+    <span class="s-lbl">解禁ノード（次の技術）</span><div>${uh}</div>
+  `;
+  document.querySelectorAll(".chip[data-id]").forEach(c => {
+    c.addEventListener("click", () => {
+      const nn = NM[c.dataset.id]; if (!nn) return;
+      selId=nn.id; flashEdges(nn.id); openSide(nn); focusCam(nn);
+    });
+  });
+  document.getElementById("side").classList.add("open");
+}
+function closeSide() { document.getElementById("side").classList.remove("open"); }
+document.getElementById("side-close").addEventListener("click", () => { selId=null; resetEdges(); closeSide(); });
+
+// ─────────────────────────────────────────────────────
+// FILTERS
+// ─────────────────────────────────────────────────────
+const aT = new Set([-2,-1,0,1,2,3,4]);
+const fp = document.getElementById("filters");
+[-2,-1,0,4,1,2,3].forEach(tid => {
+  const info = tc(tid); if (!info) return;
+  const btn = document.createElement("button");
+  btn.className = "fbtn on"; btn.textContent = info.label;
+  btn.style.cssText = `border-color:${info.hex}99;background:${info.hex}22;color:${info.hex}`;
+  btn.addEventListener("click", () => {
+    if (aT.has(tid)) { aT.delete(tid); btn.classList.remove("on"); }
+    else { aT.add(tid); btn.classList.add("on"); }
+    NODES.forEach(n => { const v=aT.has(n.t); const m=MESHES[n.id]; m.plate.visible=v; m.core.visible=v; m.glow.visible=v; });
+    EO.forEach(e => { const a=NM[e.fid],b=NM[e.tid]; e.line.visible=a&&b&&aT.has(a.t)&&aT.has(b.t); });
+  });
+  fp.appendChild(btn);
+});
+
+// ─────────────────────────────────────────────────────
+// ANIMATE
+// ─────────────────────────────────────────────────────
+const clk = new THREE.Clock();
+const L = (a,b,t) => a+(b-a)*t;
+
+function getBgLevelFromCamera(camX) {
+  const levels = ['-2','-1','4','0','1','2','3'];
+  const xs = [-900,-560,80,-100,400,720,1020];
+  let best=0, bestD=Infinity;
+  xs.forEach((x,i)=>{ const d=Math.abs(camX-x); if(d<bestD){bestD=d;best=i;} });
+  return levels[best];
+}
+
+function loop() {
+  requestAnimationFrame(loop);
+  const el = clk.getElapsedTime();
+  const k = 0.08;
+  phi=L(phi,tp,k); theta=L(theta,tt,k); dist=L(dist,td,k); panX=L(panX,tpx,k); panY=L(panY,tpy,k);
+  if (spin) tt += 0.003;
+  camU();
+
+  NODES.forEach(n => {
+    const m = MESHES[n.id];
+    // 浮遊アニメ (Y方向のみ微小)
+    const fy = n.py + Math.sin(el*0.6 + n.px*0.006)*2.5;
+    m.plate.position.y = fy;
+    m.core.position.y  = fy;
+    m.glow.position.y  = fy;
+    m.plate.lookAt(camera.position);
+
+    const act = hvId===n.id || selId===n.id;
+    m.cm.emissiveIntensity = L(m.cm.emissiveIntensity, act?3.5:1.5, 0.1);
+    m.gm.opacity = L(m.gm.opacity, act?0.45:0.1, 0.1);
+    const ts = act ? 2.5 : 1.0;
+    m.glow.scale.x = L(m.glow.scale.x, ts, 0.1);
+    m.glow.scale.y = m.glow.scale.z = m.glow.scale.x;
+  });
+
+  EO.forEach((e, i) => {
+    if (!e.line.visible) return;
+    if (selId && (e.fid===selId || e.tid===selId))
+      e.mat.opacity = 0.5 + Math.sin(el*4 + i*0.4)*0.45;
+  });
+
+  // カメラ位置に応じた背景自動切り替え
+  if (!selId) {
+    const newBgLevel = getBgLevelFromCamera(panX);
+    if(newBgLevel !== currentBgLevel) {
+      startBgAnim(newBgLevel);
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+loop();
+
+// ─────────────────────────────────────────────────────
+// INTRO ANIMATION
+// ─────────────────────────────────────────────────────
+(function startIntro() {
+  // カメラを遠くから飛び込むイントロ
+  const introStartDist = 12000;
+  dist = introStartDist; td = introStartDist;
+
+  const titleEl = document.getElementById("intro-title");
+  const subEl   = document.getElementById("intro-sub");
+  const barEl   = document.getElementById("intro-bar");
+  const fillEl  = document.getElementById("intro-bar-fill");
+  const introEl = document.getElementById("intro");
+
+  // フェードイン
+  setTimeout(() => { titleEl.classList.add("show"); subEl.classList.add("show"); barEl.classList.add("show"); }, 200);
+  // バー伸びる
+  setTimeout(() => { fillEl.style.width = "100%"; }, 300);
+
+  // カメラズームイン (introStartDist → 1800) over 3s
+  const zoomDuration = 3200;
+  const zoomStart = performance.now();
+  const targetDist = 1800;
+
+  function zoomStep(now) {
+    const elapsed = now - zoomStart;
+    const t = Math.min(elapsed / zoomDuration, 1);
+    // easeOutQuint
+    const ease = 1 - Math.pow(1 - t, 5);
+    td = introStartDist + (targetDist - introStartDist) * ease;
+    if (t < 1) requestAnimationFrame(zoomStep);
+  }
+  requestAnimationFrame(zoomStep);
+
+  // 2.8s後にフェードアウト
+  setTimeout(() => {
+    introEl.classList.add("hidden");
+    setTimeout(() => { introEl.style.display = "none"; }, 1300);
+    td = targetDist;
+  }, 2800);
+})();
+
+// ─────────────────────────────────────────────────────
+// UNLOCK FX
+// ─────────────────────────────────────────────────────
+const flashOverlay = document.getElementById("flash-overlay");
+const unlockText = document.getElementById("unlock-text");
+
+function triggerUnlock(node) {
+  const col = tc(node.t).hex;
+  // フラッシュ
+  flashOverlay.style.opacity = "0.3";
+  setTimeout(() => { flashOverlay.style.opacity = "0"; }, 150);
+  // テキスト
+  unlockText.style.color = col;
+  unlockText.classList.remove("pop","fade");
+  void unlockText.offsetWidth; // reflow
+  unlockText.classList.add("pop");
+  setTimeout(() => {
+    unlockText.classList.remove("pop");
+    unlockText.classList.add("fade");
+  }, 800);
+  setTimeout(() => { unlockText.classList.remove("fade"); }, 1500);
+
+  // Three.js パーティクル
+  const nodePos = new THREE.Vector3(node.px, node.py, node.pz);
+  const count = 50;
+  const positions = new Float32Array(count * 3);
+  const velocities = [];
+  for (let i = 0; i < count; i++) {
+    positions[i*3]   = nodePos.x;
+    positions[i*3+1] = nodePos.y;
+    positions[i*3+2] = nodePos.z;
+    velocities.push(new THREE.Vector3(
+      (Math.random()-0.5)*6,
+      (Math.random()-0.5)*6,
+      (Math.random()-0.5)*6
+    ));
+  }
+  const pGeo = new THREE.BufferGeometry();
+  pGeo.setAttribute("position", new THREE.BufferAttribute(positions.slice(), 3));
+  const pMat = new THREE.PointsMaterial({ color: col, size: 3, transparent: true, opacity: 1 });
+  const pts = new THREE.Points(pGeo, pMat);
+  scene.add(pts);
+
+  const startTime = performance.now();
+  const dur = 1500;
+  const posAttr = pGeo.attributes.position;
+  function animParticles(now) {
+    const elapsed = now - startTime;
+    const t = Math.min(elapsed / dur, 1);
+    pMat.opacity = 1 - t;
+    for (let i = 0; i < count; i++) {
+      posAttr.setXYZ(i,
+        nodePos.x + velocities[i].x * elapsed * 0.1,
+        nodePos.y + velocities[i].y * elapsed * 0.1,
+        nodePos.z + velocities[i].z * elapsed * 0.1
+      );
+    }
+    posAttr.needsUpdate = true;
+    if (t < 1) requestAnimationFrame(animParticles);
+    else { scene.remove(pts); pGeo.dispose(); pMat.dispose(); }
+  }
+  requestAnimationFrame(animParticles);
+}
+
+// ─────────────────────────────────────────────────────
+// PROGRESS TRACKING
+// ─────────────────────────────────────────────────────
+const visitedNodes = new Set();
+
+function updateProgress() {
+  const total = NODES.length;
+  const count = visitedNodes.size;
+  document.getElementById("prog-count").textContent = count;
+  document.getElementById("prog-total").textContent = total;
+  document.getElementById("prog-bar").style.width = (count / total * 100) + "%";
+}
+
+// 初期化
+(function initProgress() {
+  document.getElementById("prog-total").textContent = NODES.length;
+})();
+
+window.addEventListener("resize", () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
