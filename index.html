@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Kardashev Tech Tree 3D</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -120,6 +121,46 @@ canvas { display:block; }
   position:fixed; inset:0; z-index:490; background:#fff; opacity:0; pointer-events:none;
   transition: opacity 0.15s;
 }
+
+/* ── モバイル対応 ──────────────────────────────────── */
+.hint-mobile {
+  display:none; font-size:10px; color:#475569; margin-left:auto; white-space:nowrap;
+}
+
+@media (max-width:640px) {
+  #hud { padding:8px 12px; gap:8px; }
+  #hud h1 { font-size:12px; letter-spacing:1px; }
+  #hud .hint { display:none; }
+  .hint-mobile { display:block; }
+  #progress-hud { display:none !important; }
+
+  #side { width:100vw; left:-100vw; }
+  #side-inner { padding:60px 16px 80px; }
+
+  #ctrl {
+    bottom:auto; top:46px; left:8px;
+    flex-direction:row; gap:6px;
+  }
+  .cbtn { width:40px; height:40px; font-size:18px; border-radius:10px; }
+
+  #filters {
+    top:auto; bottom:0; right:0; left:0;
+    flex-direction:row; overflow-x:auto; gap:6px;
+    padding:8px 12px; scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+    background:rgba(0,0,8,0.88);
+    backdrop-filter:blur(10px);
+    border-top:1px solid rgba(99,102,241,0.2);
+  }
+  #filters::-webkit-scrollbar { display:none; }
+  .fbtn { white-space:nowrap; flex-shrink:0; font-size:10px; padding:4px 12px; }
+
+  #legend {
+    bottom:52px; right:8px; font-size:8px; padding:6px 10px;
+  }
+
+  #sim-status { top:92px; left:8px; bottom:auto; }
+}
 </style>
 </head>
 <body>
@@ -137,6 +178,7 @@ canvas { display:block; }
 <div id="hud">
   <h1>⚡ KARDASHEV TECH TREE — 3D Force</h1>
   <span class="hint">左ドラッグ: 回転 ／ 右ドラッグ: 移動 ／ スクロール: ズーム ／ クリック: 詳細</span>
+  <span class="hint-mobile">タップ: 詳細 ／ ドラッグ: 回転 ／ 2本指: 移動・ズーム</span>
   <div id="progress-hud" style="display:flex;align-items:center;gap:8px;font-size:11px;color:#475569">
     <span id="prog-count">0</span><span style="color:#334155">/ <span id="prog-total">0</span></span>
     <div style="width:120px;height:4px;background:rgba(99,102,241,0.2);border-radius:2px;overflow:hidden">
@@ -878,6 +920,65 @@ window.addEventListener("mousemove", e => {
 });
 cvs.addEventListener("wheel", e => { td=Math.max(80,Math.min(5000,td+e.deltaY*0.7)); }, {passive:true});
 cvs.addEventListener("contextmenu", e => e.preventDefault());
+
+// ─────────────────────────────────────────────────────
+// TOUCH CONTROLS (mobile)
+// ─────────────────────────────────────────────────────
+let tch1X=0, tch1Y=0, tchStartX=0, tchStartY=0;
+let tchMoved=false, pinchStartDist=0, pinchStartTd=0;
+let pinchMidPX=0, pinchMidPY=0;
+
+cvs.addEventListener("touchstart", e => {
+  e.preventDefault();
+  hideTip();
+  if (e.touches.length===1) {
+    tch1X=tchStartX=e.touches[0].clientX;
+    tch1Y=tchStartY=e.touches[0].clientY;
+    tchMoved=false;
+  } else if (e.touches.length===2) {
+    const dx=e.touches[0].clientX-e.touches[1].clientX;
+    const dy=e.touches[0].clientY-e.touches[1].clientY;
+    pinchStartDist=Math.hypot(dx,dy); pinchStartTd=td;
+    pinchMidPX=(e.touches[0].clientX+e.touches[1].clientX)/2;
+    pinchMidPY=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    tchMoved=true;
+  }
+},{passive:false});
+
+cvs.addEventListener("touchmove", e => {
+  e.preventDefault();
+  if (e.touches.length===1) {
+    const dx=e.touches[0].clientX-tch1X, dy=e.touches[0].clientY-tch1Y;
+    if (Math.abs(e.touches[0].clientX-tchStartX)+Math.abs(e.touches[0].clientY-tchStartY)>8)
+      tchMoved=true;
+    tt-=dx*0.004; tp=Math.max(-1.2,Math.min(1.2,tp+dy*0.004));
+    tch1X=e.touches[0].clientX; tch1Y=e.touches[0].clientY;
+  } else if (e.touches.length===2) {
+    tchMoved=true;
+    const dx=e.touches[0].clientX-e.touches[1].clientX;
+    const dy=e.touches[0].clientY-e.touches[1].clientY;
+    const d=Math.hypot(dx,dy);
+    if (pinchStartDist>0) td=Math.max(80,Math.min(5000,pinchStartTd*(pinchStartDist/d)));
+    const midX=(e.touches[0].clientX+e.touches[1].clientX)/2;
+    const midY=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    const s=dist*0.002;
+    tpx-=(midX-pinchMidPX)*s; tpy+=(midY-pinchMidPY)*s;
+    pinchMidPX=midX; pinchMidPY=midY;
+  }
+},{passive:false});
+
+cvs.addEventListener("touchend", e => {
+  if (!tchMoved && e.changedTouches.length===1 && e.touches.length===0) {
+    const t=e.changedTouches[0];
+    const fe={clientX:t.clientX, clientY:t.clientY};
+    const n=getHit(fe);
+    if (n) {
+      if (selId===n.id) { selId=null; resetEdges(); closeSide(); }
+      else { selId=n.id; flashEdges(n.id); openSide(n); focusCam(n); }
+    } else { selId=null; resetEdges(); closeSide(); }
+  }
+  if (e.touches.length<2) pinchStartDist=0;
+},{passive:false});
 
 document.getElementById("btn-reset").addEventListener("click", () => {
   tp=0; tt=0.1; td=1800; tpx=0; tpy=0;
