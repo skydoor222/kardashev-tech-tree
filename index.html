@@ -20,7 +20,7 @@ canvas { display:block; }
   background:linear-gradient(90deg,#818cf8,#38bdf8,#34d399);
   -webkit-background-clip:text; -webkit-text-fill-color:transparent;
 }
-#hud .hint { font-size:10px; color:#475569; margin-left:auto; }
+#hud .hint { font-size:10px; color:#475569; margin-left:auto; white-space:nowrap; overflow:hidden; }
 
 /* Side Panel */
 #side {
@@ -122,45 +122,41 @@ canvas { display:block; }
   transition: opacity 0.15s;
 }
 
-/* ── モバイル対応 ──────────────────────────────────── */
-.hint-mobile {
-  display:none; font-size:10px; color:#475569; margin-left:auto; white-space:nowrap;
-}
+/* ── モバイル対応 ── */
+.hint-mobile { display:none; font-size:10px; color:#475569; margin-left:auto; white-space:nowrap; }
 
-@media (max-width:640px) {
+/* メディアクエリ (主要手段) */
+@media (max-width:768px) {
   #hud { padding:8px 12px; gap:8px; }
   #hud h1 { font-size:12px; letter-spacing:1px; }
   #hud .hint { display:none; }
   .hint-mobile { display:block; }
   #progress-hud { display:none !important; }
-
   #side { width:100vw; left:-100vw; }
   #side-inner { padding:60px 16px 80px; }
-
-  #ctrl {
-    bottom:auto; top:46px; left:8px;
-    flex-direction:row; gap:6px;
-  }
+  #ctrl { bottom:auto; top:46px; left:8px; flex-direction:row; gap:6px; }
   .cbtn { width:40px; height:40px; font-size:18px; border-radius:10px; }
-
-  #filters {
-    top:auto; bottom:0; right:0; left:0;
-    flex-direction:row; overflow-x:auto; gap:6px;
-    padding:8px 12px; scrollbar-width:none;
-    -webkit-overflow-scrolling:touch;
-    background:rgba(0,0,8,0.88);
-    backdrop-filter:blur(10px);
-    border-top:1px solid rgba(99,102,241,0.2);
-  }
+  #filters { top:auto; bottom:0; right:0; left:0; flex-direction:row; overflow-x:auto; gap:6px; padding:8px 12px; scrollbar-width:none; -webkit-overflow-scrolling:touch; background:rgba(0,0,8,0.88); backdrop-filter:blur(10px); border-top:1px solid rgba(99,102,241,0.2); }
   #filters::-webkit-scrollbar { display:none; }
   .fbtn { white-space:nowrap; flex-shrink:0; font-size:10px; padding:4px 12px; }
-
-  #legend {
-    bottom:52px; right:8px; font-size:8px; padding:6px 10px;
-  }
-
+  #legend { bottom:52px; right:8px; font-size:8px; padding:6px 10px; }
   #sim-status { top:92px; left:8px; bottom:auto; }
 }
+/* JSクラス補完 (body.is-mobile が JS で付与される) */
+body.is-mobile #hud { padding:8px 12px; gap:8px; }
+body.is-mobile #hud h1 { font-size:12px; letter-spacing:1px; }
+body.is-mobile #hud .hint { display:none; }
+body.is-mobile .hint-mobile { display:block; }
+body.is-mobile #progress-hud { display:none !important; }
+body.is-mobile #side { width:100vw; left:-100vw; }
+body.is-mobile #side-inner { padding:60px 16px 80px; }
+body.is-mobile #ctrl { bottom:auto; top:46px; left:8px; flex-direction:row; gap:6px; }
+body.is-mobile .cbtn { width:40px; height:40px; font-size:18px; border-radius:10px; }
+body.is-mobile #filters { top:auto; bottom:0; right:0; left:0; flex-direction:row; overflow-x:auto; gap:6px; padding:8px 12px; scrollbar-width:none; -webkit-overflow-scrolling:touch; background:rgba(0,0,8,0.88); backdrop-filter:blur(10px); border-top:1px solid rgba(99,102,241,0.2); }
+body.is-mobile #filters::-webkit-scrollbar { display:none; }
+body.is-mobile .fbtn { white-space:nowrap; flex-shrink:0; font-size:10px; padding:4px 12px; }
+body.is-mobile #legend { bottom:52px; right:8px; font-size:8px; padding:6px 10px; }
+body.is-mobile #sim-status { top:92px; left:8px; bottom:auto; }
 </style>
 </head>
 <body>
@@ -215,6 +211,17 @@ canvas { display:block; }
 
 <script src="./three.min.js"></script>
 <script>
+// ─────────────────────────────────────────────────────
+// MOBILE CLASS DETECTION
+// ─────────────────────────────────────────────────────
+(function(){
+  if(window.innerWidth<768||'ontouchstart' in window||navigator.maxTouchPoints>0)
+    document.body.classList.add('is-mobile');
+})();
+window.addEventListener('resize',function(){
+  document.body.classList.toggle('is-mobile',window.innerWidth<768);
+});
+
 // ─────────────────────────────────────────────────────
 // BACKGROUND CANVAS ANIMATION
 // ─────────────────────────────────────────────────────
